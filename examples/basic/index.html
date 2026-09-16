@@ -1,0 +1,21 @@
+<html>
+<head><meta charset="utf-8"><title>Temple example</title></head>
+<body>
+
+<slot src="./style.css" type="css" />
+
+<div>
+  <p class="eyebrow">TEMPLE / A SMALL START</p>
+  <h1>Small components. Native HTML.</h1>
+  <p>Two instances of one child component, with their own scoped styles.</p>
+  <section class="cards">
+    <slot src="./child.html" />
+    <slot src="./child.html" />
+  </section>
+  <footer>TypeScript + HTML + CSS. No virtual DOM.</footer>
+</div>
+
+<slot src="./scripts.ts" type="script" />
+
+</body>
+</html>

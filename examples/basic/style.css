@@ -1,0 +1,6 @@
+main { max-width: 840px; margin: 80px auto; padding: 24px; font-family: system-ui, sans-serif; color: #24311d; }
+.eyebrow { font-size: 12px; letter-spacing: .18em; color: #687a59; }
+h1 { max-width: 650px; font-size: clamp(36px, 6vw, 64px); line-height: 1.05; letter-spacing: -.05em; }
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin: 40px 0; }
+footer { font-size: 13px; color: #687a59; }
+@media (max-width: 600px) { .cards { grid-template-columns: 1fr; } main { margin: 24px auto; } }

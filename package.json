@@ -1,0 +1,26 @@
+{
+  "name": "temple-dom",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A small TypeScript-first component compiler targeting native DOM APIs",
+  "scripts": {
+    "build": "tsc",
+    "example": "npm run build && node dist/cli.js examples/basic/index.html --outdir examples/basic/dist",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "check": "tsc --noEmit",
+    "dev": "npm run build && vite",
+    "preview": "python3 -m http.server 4173 --directory examples/basic/dist"
+  },
+  "dependencies": {
+    "parse5": "^7.2.1",
+    "postcss": "^8.5.3",
+    "postcss-selector-parser": "^7.1.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "jsdom": "^26.0.0"
+  }
+}
