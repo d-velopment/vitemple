@@ -27,7 +27,14 @@ function formatHtml(source: string): string {
     const text = token.trim(); if (!text) continue;
     if (/^<\/(html|head|body|main|section|article|div|p|h[1-6]|ul|ol|li|button|footer|script|style)\b/i.test(text)) depth = Math.max(0, depth - 1);
     if (/^<script\b[\s\S]*<\/script>/i.test(text) || /^<style\b[\s\S]*<\/style>/i.test(text)) {
-      const m = text.match(/^(<[^>]+>)([\s\S]*?)(<\/[^>]+>)$/); if (m) { lines.push('  '.repeat(depth) + m[1]); for (const line of m[2].trim().split(/\r?\n/)) if (line.trim()) lines.push('  '.repeat(depth + 1) + line.trim()); lines.push('  '.repeat(depth) + m[3]); continue; }
+      const m = text.match(/^(<[^>]+>)([\s\S]*?)(<\/[^>]+>)$/); if (m) {
+        lines.push('  '.repeat(depth) + m[1]);
+        const blockLines = m[2].replace(/^\s*\n|\n\s*$/g, '').split(/\r?\n/);
+        const indents = blockLines.filter(line => line.trim()).map(line => line.match(/^\s*/)?.[0].length ?? 0);
+        const commonIndent = indents.length ? Math.min(...indents) : 0;
+        for (const line of blockLines) { if (line.trim()) lines.push('  '.repeat(depth + 1) + line.slice(commonIndent)); }
+        lines.push('  '.repeat(depth) + m[3]); continue;
+      }
     }
     lines.push('  '.repeat(depth) + text);
     if (/^<(html|head|body|main|section|article|div|p|h[1-6]|ul|ol|li|button|footer)\b/i.test(text) && !/\/\s*>$/.test(text)) depth++;
@@ -57,12 +64,20 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
     else replacement = await expand(target, [...stack, filename], styles, scripts, passedAttributes);
     cleaned = cleaned.slice(0, match.index) + replacement + cleaned.slice(match.index + match[0].length); slotRe.lastIndex = match.index + replacement.length;
   }
-  const inlineRe = /<script\b([^>]*\blang\s*=\s*["']ts["'][^>]*)>([\s\S]*?)<\/script\s*>/gi;
+  const inlineRe = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
   let inline: RegExpExecArray | null;
   while ((inline = inlineRe.exec(cleaned))) {
-    const js = (await transformWithEsbuild(rewriteTsImports(inline[2]), filename, { loader: 'ts', format: 'esm' })).code;
-    cleaned = cleaned.slice(0, inline.index) + `<script type="module">${js}</script>` + cleaned.slice(inline.index + inline[0].length);
-    inlineRe.lastIndex = inline.index + js.length;
+    const attributes = inline[1]; const sourceCode = inline[2];
+    // Slot scripts carrying data-source are already compiled modules. Imports
+    // and exports also require module semantics, so leave those scripts alone.
+    if (/\bdata-source\s*=|\bdata-temple-scoped\s*=|\bimport\s|\bexport\s/.test(attributes + sourceCode)) continue;
+    const isTypeScript = /\blang\s*=\s*["']ts["']|\btype\s*=\s*["']ts["']/.test(attributes);
+    // Transpile TypeScript without asking esbuild for its own IIFE: the
+    // compiler adds exactly one isolation wrapper below.
+    const js = isTypeScript ? (await transformWithEsbuild(sourceCode, filename, { loader: 'ts', format: 'esm' })).code : sourceCode;
+    const wrapped = `<script data-temple-scoped="true">(() => {\n${js}\n})();</script>`;
+    cleaned = cleaned.slice(0, inline.index) + wrapped + cleaned.slice(inline.index + inline[0].length);
+    inlineRe.lastIndex = inline.index + wrapped.length;
   }
   return cleaned;
   /*

@@ -2,17 +2,17 @@
 <head>
   <meta charset="utf-8">
   <title>Temple example</title>
+  <slot src="./style.css" type="css" />
 </head>
 <body>
-  <slot src="./style.css" type="css" />
-
+  
   <main>
     <p class="eyebrow">TEMPLE / A SMALL START</p>
     <h1>Small components. Native HTML.</h1>
     <p>Two instances of one child component, with their own scoped scripts.</p>
     <section class="cards">
-      <slot src="./components/card.html" test="Hello, world!" />
-      <slot src="./components/card.html" test="Another instance" />
+      <slot src="./components/card.html" id="card1" test="Hello, world!" />
+      <slot src="./components/card.html" id="card2" test="Another world!" />
     </section>
     <footer>TypeScript + HTML + CSS. No virtual DOM.</footer>
   </main>

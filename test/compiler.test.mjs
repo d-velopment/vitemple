@@ -11,7 +11,7 @@ test('keeps HTML, expands slots, moves styles, transpiles scripts', async t => {
   const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
   const output = await readFile(result.html, 'utf8');
   assert.match(output, /<style data-source="child.html">\n\s+p \{ color: red \}\n\s+<\/style>/);
-  assert.match(output, /<script type="module">\n\s+const n = 1;/);
+  assert.match(output, /<script data-temple-scoped="true">\n\s*\(\(\) =>/);
   assert.match(output, /<p>\s*Child\s*<\/p>/); assert.doesNotMatch(output, /<slot/);
   assert.match(output, /^<!doctype html>\s*<html>\s*<head>\s*<style data-source="child.html">/i);
 });

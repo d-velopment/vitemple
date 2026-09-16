@@ -3,7 +3,8 @@
     padding: 28px;
     border: 1px solid #d9dfd5;
     border-radius: 18px;
-    background: white;
+    background-color: #f9f9f9;
+    transition: background-color .5s ease-in-out;
   }
 
   .avatar {
@@ -20,7 +21,6 @@
   h2 {
     margin: 20px 0 6px;
     font-size: 24px;
-    color: {color};
   }
 
   p {
@@ -42,9 +42,18 @@
   }
 </style>
 
-<article>
+<article id="{id}">
   <span class="avatar">T</span>
   <h2>{test}</h2>
   <p>This fragment was inserted as HTML.</p>
-  <button type="button" onclick="this.textContent='Hello!'">Say hello</button>
+  <button type="button" onclick="this.textContent='Again'">Toggle</button>
 </article>
+
+<script>
+  console.log('This is a scoped script {id}');
+  const article = document.getElementById('{id}');
+  const button = article?.querySelector('button');
+  button?.addEventListener('click', () => {
+    article.classList.toggle('{id}');
+  });
+</script>

@@ -24,6 +24,14 @@ h1 {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
     margin: 40px 0;
+
+    .card1 {
+        background-color: rgb(255, 122, 122);
+    }
+
+    .card2 {
+        background-color: rgb(122, 122, 255);
+    }
 }
 
 footer {
