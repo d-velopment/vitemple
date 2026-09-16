@@ -6,8 +6,10 @@ const container = document.querySelector('.paging');
 if (template && container) {
   for (let index = 1; index <= 10; index += 1) {
     const fragment = template.content.cloneNode(true) as DocumentFragment;
-    const heading = fragment.querySelector('span');
-    if (heading) heading.textContent = String(index);
+    const element = fragment.querySelector('section');
+    
+    if (element) element.dataset.value = String(index);
+
     container.append(fragment);
   }
 }

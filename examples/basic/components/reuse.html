@@ -7,13 +7,29 @@
         color: white;
         text-decoration: none;
     }
+
     a:hover {
         background-color: #2c4420;
     }
 </style>
 
-<a href="#">
-    <span>
-        {value}
-    </span>
-</a>
+<section data-fragment="{id}" data-value="{value}">
+    <a href="/#">
+        <span>
+            {value}
+        </span>
+    </a>
+</section>
+
+<script>
+    // Uppdate all fragments related to the same fragment id with the external value
+    document.querySelectorAll('[data-fragment="{id}"]').forEach((fragment) => {
+        const value = fragment.dataset.value;
+
+        const span = fragment.querySelector('span');
+        if (span) span.textContent = value;
+
+        const a = fragment.querySelector('a');
+        if (a) a.href = `/#${value}`;
+    });
+</script>

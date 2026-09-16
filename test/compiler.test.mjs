@@ -92,3 +92,14 @@ test('keeps unknown placeholders for runtime replacement', async t => {
   const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
   assert.match(await readFile(result.html, 'utf8'), /\{value\}/);
 });
+
+test('moves template scripts out and emits them once before body end', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, 'index.html'), '<body><slot src="./card.html" type="template" name="card" /><slot src="./card.html" type="template" name="card2" /></body>');
+  await writeFile(path.join(dir, 'card.html'), '<article>Card</article><script>console.log("card");</script>');
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+  const output = await readFile(result.html, 'utf8');
+  assert.equal((output.match(/console\.log\("card"\)/g) ?? []).length, 1);
+  assert.match(output, /<\/template>[\s\S]*<script>[\s\S]*DOMContentLoaded[\s\S]*console\.log/);
+  assert.ok(output.indexOf('console.log') < output.indexOf('</body>'));
+});

@@ -43,7 +43,7 @@ function formatHtml(source: string): string {
 }
 
 type CollectedStyle = { css: string; source: string };
-async function expand(entry: string, stack: string[], styles: CollectedStyle[], scripts = new Set<string>(), params: Record<string, string> = {}): Promise<string> {
+async function expand(entry: string, stack: string[], styles: CollectedStyle[], scripts = new Set<string>(), params: Record<string, string> = {}, templateScripts: string[] = []): Promise<string> {
   const filename = path.resolve(entry);
   if (stack.includes(filename)) throw new Error(`Circular component import: ${[...stack, filename].join(' -> ')}`);
   const source = interpolateParams(await readFile(filename, 'utf8'), params);
@@ -62,7 +62,14 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
     if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.some(s => s.css === css)) styles.push({ css, source: path.basename(target) }); }
       else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const isTypeScript = type === 'ts' || /\.tsx?$/.test(target); const js = isTypeScript ? (await transformWithEsbuild(rewriteTsImports(code), target, { loader: 'ts', format: 'esm' })).code : rewriteTsImports(code); replacement = `<script type="module" data-source="${path.basename(target)}">${js}</script>`; }
     else if (type === 'template') {
-      const content = await expand(target, [...stack, filename], styles, scripts, passedAttributes);
+      let content = await expand(target, [...stack, filename], styles, scripts, passedAttributes, templateScripts);
+      const embeddedScripts = content.match(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi) ?? [];
+      for (const script of embeddedScripts) {
+        const body = script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '');
+        const initializer = `<script>document.addEventListener('DOMContentLoaded', () => {\n${body}\n});</script>`;
+        if (!templateScripts.includes(initializer)) templateScripts.push(initializer);
+      }
+      content = content.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
       const name = get(match[1], 'name');
       const id = name ? ` id="${name.replaceAll('"', '&quot;')}"` : '';
       const templateAttributes = Object.entries(passedAttributes)
@@ -146,15 +153,17 @@ export function temple(): Plugin {
 
 export async function compile(entry: string, options: CompileOptions): Promise<{ javascript: string; html: string }> {
   const outdir = path.resolve(options.outdir); await mkdir(outdir, { recursive: true });
-  const styles: CollectedStyle[] = []; const scripts = new Set<string>(); const body = await expand(entry, [], styles, scripts);
+  const styles: CollectedStyle[] = []; const scripts = new Set<string>(); const templateScripts: string[] = []; const body = await expand(entry, [], styles, scripts, {}, templateScripts);
   for (const script of scripts) await copyImports(script, path.dirname(path.resolve(entry)), outdir);
   const html = path.join(outdir, 'index.html');
   // Keep the authored document structure. Only inject collected styles into an
   // authored <head>; never synthesize doctype/html/head/body elements.
   const styleMarkup = styles.map(s => `<style data-source="${s.source}">${s.css}</style>`).join('');
-  const output = /<head\b[^>]*>/i.test(body)
-    ? body.replace(/(<head\b[^>]*>)/i, `$1${styleMarkup}`)
-    : body;
+  const scriptsMarkup = templateScripts.join('\n');
+  const withScripts = /<\/body\s*>/i.test(body) ? body.replace(/<\/body\s*>/i, `${scriptsMarkup}\n</body>`) : body + scriptsMarkup;
+  const output = /<head\b[^>]*>/i.test(withScripts)
+    ? withScripts.replace(/(<head\b[^>]*>)/i, `$1${styleMarkup}`)
+    : withScripts;
   await writeFile(html, formatHtml(output));
   return { javascript: '', html };
 }
