@@ -22,3 +22,5 @@ CSS is inserted once per compilation in `<head>`. TypeScript script slots are tr
 The generated file is pretty-printed with two-space indentation for easier inspection. Formatting changes whitespace between elements but does not add document elements or a doctype.
 
 The implementation lives in [`src/compiler.ts`](src/compiler.ts); the runnable parent/child example is in [`examples/basic`](examples/basic).
+
+`type="template"` emits a hidden native `<template>` element. Use `template.content.cloneNode(true)` to create repeated instances. Scripts inside a template do not execute automatically; initialize each clone explicitly after insertion.

@@ -14,7 +14,7 @@ function slotAttributes(text: string): Record<string, string> {
   return result;
 }
 function interpolateParams(source: string, params: Record<string, string>): string {
-  const replace = (text: string) => text.replace(/\{\s*([A-Za-z_$][\w$]*)\s*\}/g, (_match, key) => params[key] ?? '');
+  const replace = (text: string) => text.replace(/\{\s*([A-Za-z_$][\w$]*)\s*\}/g, (match, key) => params[key] ?? match);
   // Keep style blocks byte-identical across slot instances so CSS remains shared.
   return source.split(/(<style\b[^>]*>[\s\S]*?<\/style\s*>)/gi)
     .map((part, index) => index % 2 ? part : replace(part)).join('');
@@ -59,8 +59,18 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
     const target = path.resolve(path.dirname(filename), src); const type = get(match[1], 'type') ?? path.extname(target).slice(1);
     const passedAttributes = slotAttributes(match[1]);
     let replacement = '';
-      if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.some(s => s.css === css)) styles.push({ css, source: path.basename(target) }); }
-      else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const js = type === 'ts' ? (await transformWithEsbuild(rewriteTsImports(code), target, { loader: 'ts', format: 'esm' })).code : rewriteTsImports(code); replacement = `<script type="module" data-source="${path.basename(target)}">${js}</script>`; }
+    if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.some(s => s.css === css)) styles.push({ css, source: path.basename(target) }); }
+      else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const isTypeScript = type === 'ts' || /\.tsx?$/.test(target); const js = isTypeScript ? (await transformWithEsbuild(rewriteTsImports(code), target, { loader: 'ts', format: 'esm' })).code : rewriteTsImports(code); replacement = `<script type="module" data-source="${path.basename(target)}">${js}</script>`; }
+    else if (type === 'template') {
+      const content = await expand(target, [...stack, filename], styles, scripts, passedAttributes);
+      const name = get(match[1], 'name');
+      const id = name ? ` id="${name.replaceAll('"', '&quot;')}"` : '';
+      const templateAttributes = Object.entries(passedAttributes)
+        .filter(([key]) => key !== 'src' && key !== 'type' && key !== 'name')
+        .map(([key, value]) => ` ${key}="${value.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"`).join('');
+      const nameAttribute = name ? ` name="${name.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"` : '';
+      replacement = `<template data-source="${path.basename(target)}"${id}${nameAttribute}${templateAttributes}>${content}</template>`;
+    }
     else replacement = await expand(target, [...stack, filename], styles, scripts, passedAttributes);
     cleaned = cleaned.slice(0, match.index) + replacement + cleaned.slice(match.index + match[0].length); slotRe.lastIndex = match.index + replacement.length;
   }

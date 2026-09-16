@@ -72,3 +72,23 @@ test('does not substitute params inside style blocks', async t => {
   assert.match(output, /color: \{test\}/);
   assert.match(output, /red/); assert.match(output, /blue/);
 });
+
+test('emits reusable native templates', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, 'index.html'), '<main><slot src="./card.html" type="template" name="card" data-kind="person" test="yes" /></main>');
+  await writeFile(path.join(dir, 'card.html'), '<article><h2>{test}</h2></article>');
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+  const output = await readFile(result.html, 'utf8');
+  assert.match(output, /<template data-source="card.html" id="card" name="card" data-kind="person" test="yes">[\s\S]*<article>/);
+  assert.doesNotMatch(output, /<template[^>]+\bsrc=/);
+  assert.doesNotMatch(output, /<template[^>]+\btype=/);
+  assert.match(output, /<\/template>\s*<\/main>/);
+});
+
+test('keeps unknown placeholders for runtime replacement', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, 'index.html'), '<slot src="./card.html" type="template" />');
+  await writeFile(path.join(dir, 'card.html'), '<p>{value}</p>');
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+  assert.match(await readFile(result.html, 'utf8'), /\{value\}/);
+});

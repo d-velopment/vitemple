@@ -34,6 +34,12 @@ h1 {
     }
 }
 
+.paging {
+    display: flex;
+    justify-content: space-evenly;
+    margin: 35px;
+}
+
 footer {
     font-size: 13px;
     color: #687a59;
