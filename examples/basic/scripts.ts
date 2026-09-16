@@ -1,3 +1,4 @@
-// External script slots are standalone ES modules, compiled once and installed in <head>.
+import Extra from "./extra.ts"; 
+
 console.info('Temple example loaded');
 export {};

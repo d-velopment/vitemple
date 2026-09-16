@@ -7,6 +7,7 @@ export interface CompileOptions { outdir: string; params?: Record<string, unknow
 type Node = DefaultTreeAdapterMap['node'];
 type Element = DefaultTreeAdapterMap['element'];
 const attrs = (n: Element) => Object.fromEntries(n.attrs.map(a => [a.name, a.value]));
+const rewriteTsImports = (code: string) => code.replace(/((?:from\s*|import\s*)['"])(\.\.?\/[^'"]+?)(['"])/g, (_m, before, specifier, after) => before + (/.tsx?$/.test(specifier) ? specifier.replace(/\.tsx?$/, '.js') : specifier) + after);
 
 function formatHtml(source: string): string {
   const tokens = source.replace(/>\s+</g, '><').match(/<![^>]*>|<script\b[^>]*>[\s\S]*?<\/script\s*>|<style\b[^>]*>[\s\S]*?<\/style\s*>|<[^>]+>|[^<]+/gi) ?? [];
@@ -23,7 +24,7 @@ function formatHtml(source: string): string {
   return lines.join('\n') + '\n';
 }
 
-async function expand(entry: string, stack: string[], styles: string[]): Promise<string> {
+async function expand(entry: string, stack: string[], styles: string[], scripts = new Set<string>()): Promise<string> {
   const filename = path.resolve(entry);
   if (stack.includes(filename)) throw new Error(`Circular component import: ${[...stack, filename].join(' -> ')}`);
   const source = await readFile(filename, 'utf8');
@@ -38,15 +39,15 @@ async function expand(entry: string, stack: string[], styles: string[]): Promise
     if (!src) continue;
     const target = path.resolve(path.dirname(filename), src); const type = get(match[1], 'type') ?? path.extname(target).slice(1);
     let replacement = '';
-    if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.includes(css)) styles.push(css); }
-    else if (type === 'script' || type === 'ts' || type === 'js') { const code = await readFile(target, 'utf8'); const js = type === 'ts' ? (await transformWithEsbuild(code, target, { loader: 'ts', format: 'esm' })).code : code; replacement = `<script type="module">${js}</script>`; }
-    else replacement = await expand(target, [...stack, filename], styles);
+      if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.includes(css)) styles.push(css); }
+      else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const js = type === 'ts' ? (await transformWithEsbuild(rewriteTsImports(code), target, { loader: 'ts', format: 'esm' })).code : rewriteTsImports(code); replacement = `<script type="module">${js}</script>`; }
+    else replacement = await expand(target, [...stack, filename], styles, scripts);
     cleaned = cleaned.slice(0, match.index) + replacement + cleaned.slice(match.index + match[0].length); slotRe.lastIndex = match.index + replacement.length;
   }
   const inlineRe = /<script\b([^>]*\blang\s*=\s*["']ts["'][^>]*)>([\s\S]*?)<\/script\s*>/gi;
   let inline: RegExpExecArray | null;
   while ((inline = inlineRe.exec(cleaned))) {
-    const js = (await transformWithEsbuild(inline[2], filename, { loader: 'ts', format: 'esm' })).code;
+    const js = (await transformWithEsbuild(rewriteTsImports(inline[2]), filename, { loader: 'ts', format: 'esm' })).code;
     cleaned = cleaned.slice(0, inline.index) + `<script type="module">${js}</script>` + cleaned.slice(inline.index + inline[0].length);
     inlineRe.lastIndex = inline.index + js.length;
   }
@@ -81,13 +82,34 @@ async function expand(entry: string, stack: string[], styles: string[]): Promise
   */
 }
 
+async function copyImports(file: string, sourceRoot: string, outdir: string, seen = new Set<string>(), writeCurrent = false): Promise<void> {
+  file = path.resolve(file); if (seen.has(file)) return; seen.add(file);
+  let code: string; try { code = await readFile(file, 'utf8'); } catch { return; }
+  const imports = [...code.matchAll(/(?:import\s+(?:[^'";]+?\s+from\s+)?|export\s+[^'";]+?\s+from\s+|import\s*\()(['"])(\.\.?\/[^'"]+)\1/g)].map(m => m[2]);
+  const rewritten = code.replace(/((?:from\s*|import\s*)['"])(\.\.?\/[^'"]+?)(['"])/g, (_m, before, specifier, after) => {
+    return before + (/\.tsx?$/.test(specifier) ? specifier.replace(/\.tsx?$/, '.js') : specifier) + after;
+  });
+  if (writeCurrent) {
+    const outputFile = /\.tsx?$/.test(file) ? file.replace(/\.tsx?$/, '.js') : file;
+    const outputCode = /\.tsx?$/.test(file) ? (await transformWithEsbuild(rewritten, file, { loader: 'ts', format: 'esm' })).code : rewritten;
+    const outputDestination = path.join(outdir, path.relative(sourceRoot, outputFile));
+    await mkdir(path.dirname(outputDestination), { recursive: true });
+    await writeFile(outputDestination, outputCode);
+  }
+  for (const specifier of imports) {
+    const dependency = path.resolve(path.dirname(file), specifier);
+    await copyImports(dependency, sourceRoot, outdir, seen, true);
+  }
+}
+
 export function temple(): Plugin {
   return { name: 'temple', enforce: 'pre', async load(id) { if (!id.endsWith('?temple')) return; const styles: string[] = []; return `export default ${JSON.stringify(await expand(id.slice(0, -7), [], styles))};`; } };
 }
 
 export async function compile(entry: string, options: CompileOptions): Promise<{ javascript: string; html: string }> {
   const outdir = path.resolve(options.outdir); await mkdir(outdir, { recursive: true });
-  const styles: string[] = []; const body = await expand(entry, [], styles);
+  const styles: string[] = []; const scripts = new Set<string>(); const body = await expand(entry, [], styles, scripts);
+  for (const script of scripts) await copyImports(script, path.dirname(path.resolve(entry)), outdir);
   const html = path.join(outdir, 'index.html');
   // Keep the authored document structure. Only inject collected styles into an
   // authored <head>; never synthesize doctype/html/head/body elements.
