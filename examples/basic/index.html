@@ -4,16 +4,16 @@
 
 <slot src="./style.css" type="css" />
 
-<div>
+<main>
   <p class="eyebrow">TEMPLE / A SMALL START</p>
   <h1>Small components. Native HTML.</h1>
   <p>Two instances of one child component, with their own scoped styles.</p>
   <section class="cards">
-    <slot src="./child.html" />
-    <slot src="./child.html" />
+    <slot src="./components/child.html" />
+    <slot src="./components/child.html" />
   </section>
   <footer>TypeScript + HTML + CSS. No virtual DOM.</footer>
-</div>
+</main>
 
 <slot src="./scripts.ts" type="script" />
 
