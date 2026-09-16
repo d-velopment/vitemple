@@ -8,6 +8,17 @@ type Node = DefaultTreeAdapterMap['node'];
 type Element = DefaultTreeAdapterMap['element'];
 const attrs = (n: Element) => Object.fromEntries(n.attrs.map(a => [a.name, a.value]));
 const rewriteTsImports = (code: string) => code.replace(/((?:from\s*|import\s*)['"])(\.\.?\/[^'"]+?)(['"])/g, (_m, before, specifier, after) => before + (/.tsx?$/.test(specifier) ? specifier.replace(/\.tsx?$/, '.js') : specifier) + after);
+function slotAttributes(text: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const match of text.matchAll(/([A-Za-z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) result[match[1]] = match[2] ?? match[3] ?? match[4] ?? '';
+  return result;
+}
+function interpolateParams(source: string, params: Record<string, string>): string {
+  const replace = (text: string) => text.replace(/\{\s*([A-Za-z_$][\w$]*)\s*\}/g, (_match, key) => params[key] ?? '');
+  // Keep style blocks byte-identical across slot instances so CSS remains shared.
+  return source.split(/(<style\b[^>]*>[\s\S]*?<\/style\s*>)/gi)
+    .map((part, index) => index % 2 ? part : replace(part)).join('');
+}
 
 function formatHtml(source: string): string {
   const tokens = source.replace(/>\s+</g, '><').match(/<![^>]*>|<script\b[^>]*>[\s\S]*?<\/script\s*>|<style\b[^>]*>[\s\S]*?<\/style\s*>|<[^>]+>|[^<]+/gi) ?? [];
@@ -24,13 +35,14 @@ function formatHtml(source: string): string {
   return lines.join('\n') + '\n';
 }
 
-async function expand(entry: string, stack: string[], styles: string[], scripts = new Set<string>()): Promise<string> {
+type CollectedStyle = { css: string; source: string };
+async function expand(entry: string, stack: string[], styles: CollectedStyle[], scripts = new Set<string>(), params: Record<string, string> = {}): Promise<string> {
   const filename = path.resolve(entry);
   if (stack.includes(filename)) throw new Error(`Circular component import: ${[...stack, filename].join(' -> ')}`);
-  const source = await readFile(filename, 'utf8');
+  const source = interpolateParams(await readFile(filename, 'utf8'), params);
   // Textual expansion preserves the author's doctype and document elements.
   const styleRe = /<style\b[^>]*>[\s\S]*?<\/style\s*>/gi;
-  let cleaned = source.replace(styleRe, tag => { const css = tag.replace(/^<style\b[^>]*>|<\/style\s*>$/gi, ''); if (!styles.includes(css)) styles.push(css); return ''; });
+  let cleaned = source.replace(styleRe, tag => { const css = tag.replace(/^<style\b[^>]*>|<\/style\s*>$/gi, ''); if (!styles.some(s => s.css === css)) styles.push({ css, source: path.basename(filename) }); return ''; });
   const slotRe = /<slot\b([^>]*?)(?:\/\s*>|>\s*<\/slot\s*>)/gi;
   const get = (text: string, name: string) => new RegExp(`${name}\\s*=\\s*["']([^"']*)["']`, 'i').exec(text)?.[1];
   let match: RegExpExecArray | null;
@@ -38,10 +50,11 @@ async function expand(entry: string, stack: string[], styles: string[], scripts 
     const src = get(match[1], 'src');
     if (!src) continue;
     const target = path.resolve(path.dirname(filename), src); const type = get(match[1], 'type') ?? path.extname(target).slice(1);
+    const passedAttributes = slotAttributes(match[1]);
     let replacement = '';
-      if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.includes(css)) styles.push(css); }
-      else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const js = type === 'ts' ? (await transformWithEsbuild(rewriteTsImports(code), target, { loader: 'ts', format: 'esm' })).code : rewriteTsImports(code); replacement = `<script type="module">${js}</script>`; }
-    else replacement = await expand(target, [...stack, filename], styles, scripts);
+      if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.some(s => s.css === css)) styles.push({ css, source: path.basename(target) }); }
+      else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const js = type === 'ts' ? (await transformWithEsbuild(rewriteTsImports(code), target, { loader: 'ts', format: 'esm' })).code : rewriteTsImports(code); replacement = `<script type="module" data-source="${path.basename(target)}">${js}</script>`; }
+    else replacement = await expand(target, [...stack, filename], styles, scripts, passedAttributes);
     cleaned = cleaned.slice(0, match.index) + replacement + cleaned.slice(match.index + match[0].length); slotRe.lastIndex = match.index + replacement.length;
   }
   const inlineRe = /<script\b([^>]*\blang\s*=\s*["']ts["'][^>]*)>([\s\S]*?)<\/script\s*>/gi;
@@ -103,17 +116,17 @@ async function copyImports(file: string, sourceRoot: string, outdir: string, see
 }
 
 export function temple(): Plugin {
-  return { name: 'temple', enforce: 'pre', async load(id) { if (!id.endsWith('?temple')) return; const styles: string[] = []; return `export default ${JSON.stringify(await expand(id.slice(0, -7), [], styles))};`; } };
+  return { name: 'temple', enforce: 'pre', async load(id) { if (!id.endsWith('?temple')) return; const styles: CollectedStyle[] = []; return `export default ${JSON.stringify(await expand(id.slice(0, -7), [], styles))};`; } };
 }
 
 export async function compile(entry: string, options: CompileOptions): Promise<{ javascript: string; html: string }> {
   const outdir = path.resolve(options.outdir); await mkdir(outdir, { recursive: true });
-  const styles: string[] = []; const scripts = new Set<string>(); const body = await expand(entry, [], styles, scripts);
+  const styles: CollectedStyle[] = []; const scripts = new Set<string>(); const body = await expand(entry, [], styles, scripts);
   for (const script of scripts) await copyImports(script, path.dirname(path.resolve(entry)), outdir);
   const html = path.join(outdir, 'index.html');
   // Keep the authored document structure. Only inject collected styles into an
   // authored <head>; never synthesize doctype/html/head/body elements.
-  const styleMarkup = styles.map(s => `<style>${s}</style>`).join('');
+  const styleMarkup = styles.map(s => `<style data-source="${s.source}">${s.css}</style>`).join('');
   const output = /<head\b[^>]*>/i.test(body)
     ? body.replace(/(<head\b[^>]*>)/i, `$1${styleMarkup}`)
     : body;

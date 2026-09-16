@@ -17,7 +17,7 @@ Components may contain ordinary HTML, inline `<style>`, and `<script lang="ts">`
 <slot src="./analytics.ts" type="script" />
 ```
 
-CSS is inserted once per compilation in `<head>`. TypeScript script slots are transpiled by Vite's esbuild transform and emitted as module scripts. HTML is intentionally not interpreted: expressions, attributes, and event handlers remain exactly as authored for the browser. `params` is accepted syntactically for forward compatibility but is not evaluated in this static mode.
+CSS is inserted once per compilation in `<head>`. TypeScript script slots are transpiled by Vite's esbuild transform and emitted as module scripts. HTML is kept as authored. Every slot attribute becomes a static substitution variable in the imported fragment: `test="Hello"` makes `{test}` or `{ test }` become `Hello`; `src` and `type` are available the same way. Values are not reactive. Substitution happens before HTML parsing, so it also works inside `<script>` and `<style>` blocks.
 
 The generated file is pretty-printed with two-space indentation for easier inspection. Formatting changes whitespace between elements but does not add document elements or a doctype.
 
