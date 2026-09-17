@@ -1,6 +1,6 @@
 {
   "name": "vitemple",
-  "version": "0.1.2",
+  "version": "0.1.6",
   "type": "module",
   "description": "A small TypeScript-first component compiler targeting native DOM APIs",
   "main": "dist/compiler.js",
