@@ -10,10 +10,11 @@ test('keeps HTML, expands slots, moves styles, transpiles scripts', async t => {
   await writeFile(path.join(dir, 'child.html'), '<style>p { color: red }</style><script lang="ts">const n: number = 1;</script><p>Child</p>');
   const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
   const output = await readFile(result.html, 'utf8');
-  assert.match(output, /<style data-source="child.html">\n\s+p \{ color: red \}\n\s+<\/style>/);
-  assert.match(output, /<script data-temple-scoped="true">\n\s*\(\(\) =>/);
+  assert.match(output, /<style data-source="child.html">\s*p\{color:red\}\s*<\/style>/);
+  assert.match(output, /<script type="module">[\s\S]*export\{[^}]*store/);
   assert.match(output, /<p>\s*Child\s*<\/p>/); assert.doesNotMatch(output, /<slot/);
   assert.match(output, /^<!doctype html>\s*<html>\s*<head>\s*<style data-source="child.html">/i);
+  assert.match(output, /export\{[^}]*store/);
 });
 
 test('reports circular slots', async t => {
@@ -69,7 +70,7 @@ test('does not substitute params inside style blocks', async t => {
   const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
   const output = await readFile(result.html, 'utf8');
   assert.equal((output.match(/data-source="card.html"/g) ?? []).length, 1);
-  assert.match(output, /color: \{test\}/);
+  assert.match(output, /color:\{test\}/);
   assert.match(output, /red/); assert.match(output, /blue/);
 });
 
@@ -100,6 +101,6 @@ test('moves template scripts out and emits them once before body end', async t =
   const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
   const output = await readFile(result.html, 'utf8');
   assert.equal((output.match(/console\.log\("card"\)/g) ?? []).length, 1);
-  assert.match(output, /<\/template>[\s\S]*<script>[\s\S]*DOMContentLoaded[\s\S]*console\.log/);
+  assert.match(output, /<\/template>[\s\S]*<script type="module">[\s\S]*DOMContentLoaded[\s\S]*console\.log/);
   assert.ok(output.indexOf('console.log') < output.indexOf('</body>'));
 });

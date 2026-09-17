@@ -23,4 +23,8 @@ The generated file is pretty-printed with two-space indentation for easier inspe
 
 The implementation lives in [`src/compiler.ts`](src/compiler.ts); the runnable parent/child example is in [`examples/basic`](examples/basic).
 
+Every generated document receives one inline `type="module"` script before `</body>`. It contains the reactive runtime and all component scripts. The runtime exposes one project-wide `store` object with `{ value, set, update, subscribe }`.
+
 `type="template"` emits a hidden native `<template>` element. Use `template.content.cloneNode(true)` to create repeated instances. Scripts inside a template do not execute automatically; initialize each clone explicitly after insertion.
+
+The example cards demonstrate a shared reactive value through `globalThis.__templeShared`: both `+` and `−` buttons update the same counter, and each card subscription updates its own `<span>`. This is an example-level micro-runtime while the public reactive API is still being designed.

@@ -1,12 +1,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { build, transformWithEsbuild, type Plugin } from 'vite';
-import { parseFragment, serialize, type DefaultTreeAdapterMap } from 'parse5';
+import { reactivityRuntime } from './reactivity.js';
 
 export interface CompileOptions { outdir: string; params?: Record<string, unknown> }
-type Node = DefaultTreeAdapterMap['node'];
-type Element = DefaultTreeAdapterMap['element'];
-const attrs = (n: Element) => Object.fromEntries(n.attrs.map(a => [a.name, a.value]));
 const rewriteTsImports = (code: string) => code.replace(/((?:from\s*|import\s*)['"])(\.\.?\/[^'"]+?)(['"])/g, (_m, before, specifier, after) => before + (/.tsx?$/.test(specifier) ? specifier.replace(/\.tsx?$/, '.js') : specifier) + after);
 function slotAttributes(text: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -42,6 +39,15 @@ function formatHtml(source: string): string {
   return lines.join('\n') + '\n';
 }
 
+function minifyCss(css: string): string {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([{}:;,>+~])\s*/g, '$1')
+    .replace(/;}/g, '}')
+    .trim();
+}
+
 type CollectedStyle = { css: string; source: string };
 async function expand(entry: string, stack: string[], styles: CollectedStyle[], scripts = new Set<string>(), params: Record<string, string> = {}, templateScripts: string[] = []): Promise<string> {
   const filename = path.resolve(entry);
@@ -65,8 +71,8 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
       let content = await expand(target, [...stack, filename], styles, scripts, passedAttributes, templateScripts);
       const embeddedScripts = content.match(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi) ?? [];
       for (const script of embeddedScripts) {
-        const body = script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '');
-        const initializer = `<script>document.addEventListener('DOMContentLoaded', () => {\n${body}\n});</script>`;
+        const body = script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '').replace(/^\s*import\s+\{\s*(?:shared|store)\s*\}\s+from\s+['"]\.\/temple-runtime\.js['"];?\s*$/gim, '');
+        const initializer = `<script type="module">document.addEventListener('DOMContentLoaded', () => {\n${body}\n});</script>`;
         if (!templateScripts.includes(initializer)) templateScripts.push(initializer);
       }
       content = content.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
@@ -92,7 +98,7 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
     // Transpile TypeScript without asking esbuild for its own IIFE: the
     // compiler adds exactly one isolation wrapper below.
     const js = isTypeScript ? (await transformWithEsbuild(sourceCode, filename, { loader: 'ts', format: 'esm' })).code : sourceCode;
-    const wrapped = `<script data-temple-scoped="true">(() => {\n${js}\n})();</script>`;
+    const wrapped = `<script type="module" data-temple-scoped="true">(() => {\n${js}\n})();</script>`;
     cleaned = cleaned.slice(0, inline.index) + wrapped + cleaned.slice(inline.index + inline[0].length);
     inlineRe.lastIndex = inline.index + wrapped.length;
   }
@@ -158,12 +164,26 @@ export async function compile(entry: string, options: CompileOptions): Promise<{
   const html = path.join(outdir, 'index.html');
   // Keep the authored document structure. Only inject collected styles into an
   // authored <head>; never synthesize doctype/html/head/body elements.
-  const styleMarkup = styles.map(s => `<style data-source="${s.source}">${s.css}</style>`).join('');
+  const styleMarkup = styles.map(s => `<style data-source="${s.source}">${minifyCss(s.css)}</style>`).join('');
   const scriptsMarkup = templateScripts.join('\n');
   const withScripts = /<\/body\s*>/i.test(body) ? body.replace(/<\/body\s*>/i, `${scriptsMarkup}\n</body>`) : body + scriptsMarkup;
-  const output = /<head\b[^>]*>/i.test(withScripts)
-    ? withScripts.replace(/(<head\b[^>]*>)/i, `$1${styleMarkup}`)
-    : withScripts;
-  await writeFile(html, formatHtml(output));
+  const scriptBlocks = withScripts.match(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi) ?? [];
+  const scriptCode = scriptBlocks.map(script => script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '').replace(/^\s*import\s+\{\s*shared\s*\}\s+from\s+['"]\.\/temple-runtime\.js['"];?\s*$/gim, '')).join('\n');
+  const withoutScripts = withScripts.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
+  const minifiedScript = (await transformWithEsbuild(`${reactivityRuntime}\n${scriptCode}`, path.join(outdir, 'temple-bundle.ts'), {
+    loader: 'ts', format: 'esm', target: 'es2022', minify: true,
+  })).code;
+  const combinedScript = `<script type="module">${minifiedScript}</script>`;
+  const withHeadAssets = /<head\b[^>]*>/i.test(withoutScripts)
+    ? withoutScripts.replace(/(<head\b[^>]*>)/i, `$1${styleMarkup}`)
+    : withoutScripts;
+  const output = /<\/body\s*>/i.test(withHeadAssets) ? withHeadAssets.replace(/<\/body\s*>/i, `${combinedScript}\n</body>`) : withHeadAssets + combinedScript;
+  // Production output is intentionally compact: one physical line.
+  const compact = formatHtml(output).replace(/\n/g, '').replace(/ {2,}/g, ' ').trim();
+  const trimmedBlocks = compact
+    .replace(/(<[A-Za-z][\w:-]*(?:\s[^>]*)?>)\s+/g, '$1')
+    .replace(/\s+(<\/[A-Za-z][\w:-]*\s*>)/g, '$1')
+    .replace(/(<(?:style|script)\b[^>]*>)\s*([\s\S]*?)\s*(<\/(?:style|script)\s*>)/gi, (_match, open, content, close) => `${open}${content.trim()}${close}`);
+  await writeFile(html, trimmedBlocks + '\n');
   return { javascript: '', html };
 }

@@ -40,20 +40,54 @@
   button:hover {
     background: #2c4420;
   }
+
+  .counter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .counter button {
+    margin-top: 0;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+  }
+
+  .count {
+    min-width: 24px;
+    text-align: center;
+    font-weight: 700;
+  }
 </style>
 
 <article id="{id}">
   <span class="avatar">T</span>
   <h2>{test}</h2>
   <p>This fragment was inserted as HTML.</p>
-  <button type="button" onclick="this.textContent='Again'">Toggle</button>
+  <div class="counter">
+    <button type="button" class="minus">−</button>
+    <span class="count">0</span>
+    <button type="button" class="plus">+</button>
+  </div>
+  <button type="button" class="toggle" onclick="this.textContent='Again'">Toggle class</button>
 </article>
 
 <script>
   console.log('This is a scoped script {id}');
   const article = document.getElementById('{id}');
-  const button = article?.querySelector('button');
-  button?.addEventListener('click', () => {
+  const toggle = article?.querySelector('.toggle');
+  toggle?.addEventListener('click', () => {
     article.classList.toggle('{id}');
   });
+
+  const count = article?.querySelector('.count');
+  const plus = article?.querySelector('.plus');
+  const minus = article?.querySelector('.minus');
+
+  // Update the count display and handle button clicks to modify the counter in the store.
+  store.subscribe((state) => { if (count) count.textContent = String(state.counter); });
+  plus?.addEventListener('click', () => { store.update((state) => ({ ...state, counter: state.counter + 1 })); });
+  minus?.addEventListener('click', () => { store.update((state) => ({ ...state, counter: state.counter - 1 })); });
 </script>
