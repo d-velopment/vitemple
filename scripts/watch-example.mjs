@@ -2,7 +2,7 @@ import { watch } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-const root = path.resolve('examples');
+const root = path.resolve('../temple-example');
 let timer;
 let running = false;
 let queued = false;

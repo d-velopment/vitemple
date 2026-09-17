@@ -4,9 +4,16 @@ Temple is a tiny TypeScript/Vite component preprocessor. It keeps authored HTML 
 
 ```sh
 npm install
-npm run dev       # Vite development example
-npm run example   # writes examples/basic/dist/index.html
+npm run example   # builds ../temple-example/basic/src/index.html into ../temple-example/basic/dist/index.html
 npm test
+```
+
+The standalone example is built from its own project after installing Temple:
+
+```sh
+cd ../temple-example/basic
+npm install
+npm run dev       # Vite dev server with rebuild and browser reload
 ```
 
 Components may contain ordinary HTML, inline `<style>`, and `<script lang="ts">`. External assets use slots:
@@ -21,7 +28,7 @@ CSS is inserted once per compilation in `<head>`. TypeScript script slots are tr
 
 The generated file is pretty-printed with two-space indentation for easier inspection. Formatting changes whitespace between elements but does not add document elements or a doctype.
 
-The implementation lives in [`src/compiler.ts`](src/compiler.ts); the runnable parent/child example is in [`examples/basic`](examples/basic).
+The implementation lives in [`src/compiler.ts`](src/compiler.ts). The runnable parent/child example is kept in the sibling project [`../temple-example/basic`](../temple-example/basic).
 
 Every generated document receives one inline `type="module"` script before `</body>`. It contains the reactive runtime and all component scripts. The runtime exposes one project-wide `store` object with `{ value, set, update, subscribe }`.
 
