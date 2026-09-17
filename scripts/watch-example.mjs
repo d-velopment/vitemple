@@ -2,7 +2,7 @@ import { watch } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-const root = path.resolve('../temple-example');
+const root = path.resolve('../vitemple-example');
 let timer;
 let running = false;
 let queued = false;

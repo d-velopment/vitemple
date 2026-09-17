@@ -1,21 +1,30 @@
 {
-  "name": "temple",
-  "version": "0.1.0",
+  "name": "vitemple",
+  "version": "0.1.2",
   "type": "module",
   "description": "A small TypeScript-first component compiler targeting native DOM APIs",
   "main": "dist/compiler.js",
   "types": "dist/compiler.d.ts",
-  "bin": { "temple": "dist/cli.js" },
-  "files": ["dist", "dev.mjs", "tsconfig.json", "src/components.d.ts", "README.md", "LICENSE"],
+  "bin": {
+    "vitemple": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "dev.mjs",
+    "tsconfig.json",
+    "src/components.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/build.mjs",
     "prepare": "npm run build",
-    "example": "npm run build && node dist/cli.js ../temple-example/basic/src/index.html --outdir ../temple-example/basic/dist",
+    "example": "npm run build && node dist/cli.js ../vitemple-example/basic/src/index.html --outdir ../vitemple-example/basic/dist",
     "example:watch": "node scripts/watch-example.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "check": "tsc --noEmit",
     "dev": "npm run build && vite",
-    "preview": "python3 -m http.server 4173 --directory ../temple-example/basic/dist"
+    "preview": "python3 -m http.server 4173 --directory ../vitemple-example/basic/dist"
   },
   "dependencies": {
     "typescript": "^5.8.2",

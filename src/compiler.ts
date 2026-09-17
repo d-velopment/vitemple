@@ -103,34 +103,6 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
     inlineRe.lastIndex = inline.index + wrapped.length;
   }
   return cleaned;
-  /*
-  async function visit(node: Node): Promise<string> {
-    if (!('tagName' in node)) return 'value' in node ? node.value : serialize(node as any);
-    const element = node as Element; const a = attrs(element);
-    if (element.tagName === 'style') { const css = element.childNodes.map(n => 'value' in n ? n.value : serialize(n as any)).join(''); if (!styles.includes(css)) styles.push(css); return ''; }
-    if (element.tagName === 'script' && !a.src) {
-      const code = element.childNodes.map(n => 'value' in n ? n.value : '').join('');
-      const js = a.lang === 'ts' || a.type === 'ts' ? (await transformWithEsbuild(code, filename, { loader: 'ts', format: 'esm' })).code : code;
-      return `<script${a.type ? ` type="${a.type}"` : ' type="module"'}>${js}</script>`;
-    }
-    if (element.tagName === 'slot' && a.src) {
-      const target = path.resolve(path.dirname(filename), a.src);
-      const type = a.type ?? path.extname(target).slice(1);
-      if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.includes(css)) styles.push(css); return ''; }
-      if (type === 'script' || type === 'ts' || type === 'js') {
-        const code = await readFile(target, 'utf8');
-        const js = type === 'ts' ? (await transformWithEsbuild(code, target, { loader: 'ts', format: 'esm' })).code : code;
-        return `<script type="module">${js}</script>`;
-      }
-      return expand(target, [...stack, filename], styles);
-    }
-    const children = element.tagName === 'template' ? (element as DefaultTreeAdapterMap['template']).content.childNodes : element.childNodes;
-    const content = (await Promise.all(children.map(visit))).join('');
-    const renderedAttrs = element.attrs.map(a => ` ${a.name}="${a.value.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"`).join('');
-    return `<${element.tagName}${renderedAttrs}>${content}</${element.tagName}>`;
-  }
-  return (await Promise.all(fragment.childNodes.map(visit))).join('');
-  */
 }
 
 async function copyImports(file: string, sourceRoot: string, outdir: string, seen = new Set<string>(), writeCurrent = false): Promise<void> {

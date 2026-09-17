@@ -1,37 +1,111 @@
-# Temple
+# Vitemple
 
-Temple is a tiny TypeScript/Vite component preprocessor. It keeps authored HTML as HTML. A `<slot src="./child.html" />` is replaced by the child fragment recursively; child styles are collected into the output document `<head>`, and scripts stay at the slot location inside `<script>` tags. No virtual DOM is generated.
+[![npm version](https://img.shields.io/npm/v/vitemple?style=flat-square&color=2563eb)](https://www.npmjs.com/package/vitemple)
+[![TypeScript](https://img.shields.io/badge/TypeScript-first-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-powered-646cff?style=flat-square&logo=vite&logoColor=white)](https://vite.dev/)
+[![Native DOM](https://img.shields.io/badge/rendering-native%20DOM-0f766e?style=flat-square)](#design-principles)
+[![License](https://img.shields.io/badge/license-MIT-f59e0b?style=flat-square)](./LICENSE)
+
+Vitemple is a lightweight TypeScript-first component preprocessor for native HTML and the DOM. It keeps authored markup intact and expands reusable `<slot>` imports at build time. The result is a compact, browser-ready `index.html` with native DOM APIs, scoped component styles, one bundled module script, and in-box reactivity through a shared `store`.
+
+## Design principles
+
+- **Native HTML output.** Vitemple does not create a virtual DOM or replace authored document structure.
+- **Build-time composition.** HTML, CSS, and TypeScript slots are resolved recursively during compilation.
+- **TypeScript-first workflow.** TypeScript scripts are transpiled with Vite's esbuild transform.
+- **ES modules.** Component scripts are combined into one minified `type="module"` script.
+- **Scoped CSS.** Each component style is installed once in the document `<head>` and tagged with its source filename.
+- **Minimal runtime.** Reactivity is opt-in through a single page-level `store`, available among all the components from the box.
+
+## Installation
+
+Install Vitemple in an application project:
 
 ```sh
-npm install
-npm run example   # builds ../temple-example/basic/src/index.html into ../temple-example/basic/dist/index.html
-npm test
+npm install vitemple
 ```
 
-The standalone example is built from its own project after installing Temple:
+The example project is available in the separate [vitemple-example GitHub repository](https://github.com/d-velopment/vitemple-example):
 
 ```sh
-cd ../temple-example/basic
+git clone https://github.com/d-velopment/vitemple-example.git
+cd vitemple-example/basic
 npm install
-npm run dev       # Vite dev server with rebuild and browser reload
 ```
 
-Components may contain ordinary HTML, inline `<style>`, and `<script lang="ts">`. External assets use slots:
+## Build and development
+
+Build a component entry file with the CLI:
+
+```sh
+vitemple src/index.html --outdir dist
+```
+
+For the example project:
+
+```sh
+npm run build   # compile src/index.html into dist/index.html
+npm run dev     # Vite server, rebuild on src changes, browser full reload
+npm start       # serve generated dist with Vite Preview
+```
+
+## Component syntax
+
+Components are ordinary HTML files. Slots import HTML fragments or external assets:
 
 ```html
-<slot src="./child.html" />
-<slot src="./style.css" type="css" />
-<slot src="./analytics.ts" type="script" />
+<main>
+  <slot src="./components/card.html" title="Hello" />
+  <slot src="./style.css" type="css" />
+  <slot src="./scripts.ts" type="script" />
+</main>
 ```
 
-CSS is inserted once per compilation in `<head>`. TypeScript script slots are transpiled by Vite's esbuild transform and emitted as module scripts. HTML is kept as authored. Every slot attribute becomes a static substitution variable in the imported fragment: `test="Hello"` makes `{test}` or `{ test }` become `Hello`; `src` and `type` are available the same way. Values are not reactive. Substitution happens before HTML parsing, so it also works inside `<script>` and `<style>` blocks.
+HTML slots are expanded recursively. Every slot attribute is available as a substitution in the imported fragment: `title="Hello"` replaces `{title}` and `{ title }`. The `src` and `type` attributes are available in the same way. Substitution happens before HTML, style, and script processing. Unknown placeholders remain unchanged for runtime use.
 
-The generated file is pretty-printed with two-space indentation for easier inspection. Formatting changes whitespace between elements but does not add document elements or a doctype.
+CSS slots are deduplicated, minified, and inserted into the authored `<head>` as `<style data-source="...">`. TypeScript slots are transpiled and their relative imports are copied into `dist`; `.ts` import extensions are rewritten to `.js`.
 
-The implementation lives in [`src/compiler.ts`](src/compiler.ts). The runnable parent/child example is kept in the sibling project [`../temple-example/basic`](../temple-example/basic).
+## Reusable templates
 
-Every generated document receives one inline `type="module"` script before `</body>`. It contains the reactive runtime and all component scripts. The runtime exposes one project-wide `store` object with `{ value, set, update, subscribe }`.
+Use `type="template"` for markup that should be cloned at runtime:
 
-`type="template"` emits a hidden native `<template>` element. Use `template.content.cloneNode(true)` to create repeated instances. Scripts inside a template do not execute automatically; initialize each clone explicitly after insertion.
+```html
+<slot src="./components/page.html" type="template" name="page" />
+```
 
-The example cards demonstrate a shared reactive value through `globalThis.__templeShared`: both `+` and `−` buttons update the same counter, and each card subscription updates its own `<span>`. This is an example-level micro-runtime while the public reactive API is still being designed.
+Vitemple emits a native `<template>` element. Its attributes include the source filename, optional `name`, and all passed slot attributes except `src`, `type`, and `name`:
+
+```ts
+const template = document.querySelector<HTMLTemplateElement>('#page');
+const fragment = template?.content.cloneNode(true) as DocumentFragment;
+container?.append(fragment);
+```
+
+Scripts inside a template are extracted and emitted once before `</body>`, wrapped in `DOMContentLoaded`. They do not run once per clone.
+
+## Reactive store
+
+The generated module provides one page-level store:
+
+```ts
+store.set({ counter: 0 });
+
+store.subscribe((state) => {
+  document.title = `Counter: ${state.counter}`;
+});
+
+store.update((state) => ({
+  ...state,
+  counter: state.counter + 1,
+}));
+```
+
+The TypeScript declaration for `store` is included with the package. Extend `vitemple/tsconfig.json` and include `node_modules/vitemple/src/components.d.ts` in an application configuration.
+
+## Output
+
+The compiler preserves the authored doctype and document elements. It does not synthesize `<html>`, `<head>`, or `<body>`. The generated HTML is compacted to one line; CSS and the combined module script are minified for delivery.
+
+## License
+
+Vitemple is released under the [MIT License](./LICENSE).
