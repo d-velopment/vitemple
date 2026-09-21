@@ -1,6 +1,14 @@
-store.set({ counter: 0 });
+const counterStorageKey = 'vitemple-docs-counter';
+let savedCounter = 0;
+try {
+  const stored = Number(sessionStorage.getItem(counterStorageKey));
+  if (Number.isFinite(stored)) savedCounter = stored;
+} catch {}
+
+store.set({ counter: savedCounter });
 store.subscribe((state) => {
   document.querySelectorAll('[data-count]').forEach((element) => { element.textContent = String(state.counter); });
+  try { sessionStorage.setItem(counterStorageKey, String(state.counter)); } catch {}
 });
 document.querySelectorAll<HTMLButtonElement>('[data-counter]').forEach((button) => {
   button.addEventListener('click', () => store.update((state) => ({ ...state, counter: state.counter + Number(button.dataset.counter) })));
