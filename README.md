@@ -8,6 +8,8 @@
 
 Vitemple is a lightweight reactive TypeScript-first component preprocessor for native HTML and the DOM. It keeps authored markup intact and expands reusable `<slot>` imports at build time. The result is a compact, browser-ready `index.html` with native DOM APIs, scoped component styles, one bundled module script, and in-box reactivity through a shared `store`.
 
+[Read the full documentation →](https://d-velopment.github.io/vitemple/)
+
 ## Design principles
 
 - **Native HTML output.** Vitemple does not create a virtual DOM or replace authored document structure.
