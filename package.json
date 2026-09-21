@@ -33,5 +33,10 @@
   "devDependencies": {
     "@types/node": "^22.13.10",
     "jsdom": "^26.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/d-velopment/vitemple.git"
+  },
+  "homepage": "https://d-velopment.github.io/vitemple/"
 }
