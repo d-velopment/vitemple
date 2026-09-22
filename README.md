@@ -29,6 +29,8 @@ Install Vitemple in an application project:
 npm install vitemple
 ```
 
+On a brand new project you will receive a `src/index.html` that imports `src/components/hello.html` through a slot. Existing files are left unchanged. It also adds `start`, `dev`, and `build` scripts if they are not present in `package.json`.
+
 The example project is available in the separate [vitemple-example GitHub repository](https://github.com/d-velopment/vitemple-example):
 
 ```sh

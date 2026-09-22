@@ -2,7 +2,7 @@
 
 A concise record of Vitemple releases and the latest repository changes.
 
-## 0.2.3
+## 0.2.5
 
 ### Added
 
@@ -13,6 +13,8 @@ A concise record of Vitemple releases and the latest repository changes.
 - Inline TypeScript support in HTML through `<script type="ts">`; TypeScript syntax is transpiled during the Vitemple build.
 - `store.init()` to set missing defaults without overwriting values restored from `sessionStorage`, alongside automatic persistence and restoration of the shared store across pages in the same tab.
 - Project-specific `sessionStorage` keys derived from the nearest application `package.json` name, keeping stores isolated between apps on the same origin.
+- A guarded install scaffold that creates an initial `src/index.html` and a slot-imported `components/hello.html` with a TypeScript color-changing heading in a new project.
+- Default `start`, `dev`, and `build` scripts added during installation when the project does not define them.
 
 ### Improved
 

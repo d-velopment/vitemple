@@ -1,6 +1,6 @@
 {
   "name": "vitemple",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "type": "module",
   "description": "A small TypeScript-first component compiler targeting native DOM APIs",
   "main": "dist/compiler.js",
@@ -15,7 +15,9 @@
     "tsconfig.json",
     "README.md",
     "LICENSE",
-    "src/components.d.ts"
+    "src/components.d.ts",
+    "scripts/postinstall.mjs",
+    "favicon.svg"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -27,7 +29,8 @@
     "dev": "npm run build && vite",
     "preview": "python3 -m http.server 4173 --directory ../vitemple-example/basic/dist",
     "dev:project": "node scripts/watch-project.mjs",
-    "dev:docs": "node scripts/watch-project.mjs ./docs"
+    "dev:docs": "node scripts/watch-project.mjs ./docs",
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
     "typescript": "^5.8.2",
