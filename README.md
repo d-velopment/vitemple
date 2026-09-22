@@ -1,12 +1,13 @@
 # Vitemple
 
 [![npm version](https://img.shields.io/npm/v/vitemple?style=flat-square&color=2563eb)](https://www.npmjs.com/package/vitemple)
+[![Vitemple powered](https://img.shields.io/badge/Vitemple-powered-2563eb?style=flat-square&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgYXJpYS1sYWJlbD0iVml0ZW1wbGUgbWFyayI%2BCgk8cGF0aCBkPSJNMS4yIDEuMmg0NS42TDI0IDQ2LjggMS4yIDEuMloiIGZpbGw9IiNmZmYiLz4KCTxwYXRoIGQ9Ik0xIDI0IDE4IDEzdjIyTDEgMjRaIiBmaWxsPSIjZmZmIi8%2BCgk8cGF0aCBkPSJtNDcgMjQtMTctMTF2MjJsMTctMTFaIiBmaWxsPSIjZmZmIi8%2BCjwvc3ZnPgo%3D)](https://github.com/d-velopment/vitemple)
 [![TypeScript](https://img.shields.io/badge/TypeScript-first-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-powered-646cff?style=flat-square&logo=vite&logoColor=white)](https://vite.dev/)
 [![Native DOM](https://img.shields.io/badge/rendering-native%20DOM-0f766e?style=flat-square)](#design-principles)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b?style=flat-square)](./LICENSE)
 
-Vitemple is a lightweight, reactive, TypeScript-first component compiler for native HTML and the DOM. It preserves authored markup and expands reusable `<slot>` imports at build time. Starting from one entry page—usually `index.html`—Vitemple follows local links to reachable HTML pages, copies their referenced assets, and emits the pages under matching paths. The result is compact, browser-ready HTML with native DOM APIs, scoped component styles, one bundled module script, and in-box reactivity through a shared `store`.
+Vitemple is a lightweight, reactive, TypeScript-first component compiler for native HTML and the DOM. It preserves authored markup and expands reusable `<slot>` imports at build time. The result is compact, browser-ready HTML with native DOM APIs, scoped component styles, one bundled module script, and in-box reactivity through a shared `store`.
 
 [Read the full documentation →](https://d-velopment.github.io/vitemple/)
 
@@ -44,7 +45,7 @@ Build a site from its HTML entry page with the CLI:
 vitemple src/index.html --outdir dist
 ```
 
-The CLI clears the output directory, compiles the entry page, then follows relative local `<a href>` links—including links inside expanded slots—to find other HTML pages. Each reachable page is emitted at its linked path: `about.html` becomes `dist/about.html`, while `guide/` resolves to `dist/guide/index.html`. External URLs and fragments are left untouched. Local assets referenced by markup, linked stylesheets, and component styles are copied with their relative paths preserved.
+The CLI clears the output directory, compiles the entry page, then follows relative local `<a href>` links-including links inside expanded slots-to find other HTML pages. Each reachable page is emitted at its linked path: `about.html` becomes `dist/about.html`, while `guide/` resolves to `dist/guide/index.html`. External URLs and fragments are left untouched. Local assets referenced by markup, linked stylesheets, and component styles are copied with their relative paths preserved.
 
 The package also includes a Vite development server for projects that use `src/index.html` and `dist` by default. It watches source files, rebuilds the linked pages and assets, and reloads the browser:
 
