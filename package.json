@@ -2,7 +2,7 @@
   "name": "vitemple",
   "version": "0.2.5",
   "type": "module",
-  "description": "A small TypeScript-first component compiler targeting native DOM APIs",
+  "description": "Vitemple lets you build reactive multi-page sites with TypeScript-based HTML files, scoped CSS, reusable components and native browser APIs.",
   "main": "dist/compiler.js",
   "types": "types/index.d.ts",
   "bin": {
