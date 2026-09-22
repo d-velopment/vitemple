@@ -8,6 +8,17 @@ versionParts[2] = String(Number(versionParts[2] ?? 0) + 1);
 packageJson.version = versionParts.join('.');
 await writeFile(packageFile, `${JSON.stringify(packageJson, null, 2)}\n`);
 
+const changelogFile = new URL('../CHANGELOG.md', import.meta.url);
+try {
+  const changelog = await readFile(changelogFile, 'utf8');
+  const currentVersion = packageJson.version;
+  const updatedChangelog = changelog.replace(
+    /^## (?:Latest|\d+\.\d+\.\d+(?:-[\w.-]+)?)$/m,
+    `## ${currentVersion}`,
+  );
+  if (updatedChangelog !== changelog) await writeFile(changelogFile, updatedChangelog);
+} catch {}
+
 const lockFile = new URL('../package-lock.json', import.meta.url);
 try {
   const lockJson = JSON.parse(await readFile(lockFile, 'utf8'));

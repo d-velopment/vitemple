@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>
+			Components & slots · Vitemple
+		</title>
+		<meta name="description" content="Learn Vitemple HTML imports, attributes, CSS, TypeScript and reusable templates.">
+		<link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+		<link rel="stylesheet" href="./assets/site.css">
+	</head>
+	<body data-page="components">
+		<slot src="./components/header.html" base="./" />
+		<div class="docs-layout">
+			<slot src="./components/sidebar.html" base="./" />
+			<main id="main" class="doc-content">
+				<div class="eyebrow">
+					THE BASICS / COMPOSITION
+				</div>
+				<h1>
+					HTML, with<br><em>a little reuse.</em>
+				</h1>
+				<p class="intro">
+					A slot is a build-time instruction. The compiler reads its source and inserts the fragment into the parent page.
+				</p>
+				<section class="step" id="html">
+					<div class="step-title">
+						<span>01</span>
+						<h2>
+							Import HTML
+						</h2>
+					</div>
+					<p>
+						Paths are relative to the importing file. Components can import other components; circular imports produce an error.
+					</p>
+					<div class="codebox">
+						<div class="codebar">
+							<span>src/index.html</span><button class="copy" type="button" aria-label="Copy src/index.html">Copy</button>
+						</div>
+						<pre>
+							<code>&lt;slot&#32;src=&quot;./components/card.html&quot;&#32;title=&quot;A&#32;small&#32;beginning&quot;&#32;/&gt;</code>
+						</pre>
+					</div>
+					<div class="codebox">
+						<div class="codebar">
+							<span>src/components/card.html</span><button class="copy" type="button" aria-label="Copy src/components/card.html">Copy</button>
+						</div>
+						<pre>
+							<code>&lt;article&#32;class=&quot;card&quot;&gt;&#10;&#32;&#32;&lt;h2&gt;{title}&lt;/h2&gt;&#10;&#32;&#32;&lt;p&gt;Plain&#32;HTML.&#32;Reused&#32;anywhere.&lt;/p&gt;&#10;&lt;/article&gt;</code>
+						</pre>
+					</div>
+				</section>
+				<section class="step" id="attributes">
+					<div class="step-title">
+						<span>02</span>
+						<h2>
+							Pass attributes
+						</h2>
+					</div>
+					<p>
+						Named attributes, including src and type, are available as {name} or { name }. Unknown placeholders remain unchanged. Substitutions are plain text: use trusted author-provided values, not unescaped user input.
+					</p>
+					<div class="callout">
+						Placeholders work in component markup and inline scripts. Style blocks are excluded so instances can share the same CSS.
+					</div>
+				</section>
+				<section class="step" id="assets">
+					<div class="step-title">
+						<span>03</span>
+						<h2>
+							Add styles and scripts
+						</h2>
+					</div>
+					<p>
+						Style blocks are collected into the authored head and deduplicated by CSS content. Styles are global: use component classes to avoid selector collisions.
+					</p>
+					<div class="codebox">
+						<div class="codebar">
+							<span>Component assets</span><button class="copy" type="button" aria-label="Copy Component assets">Copy</button>
+						</div>
+						<pre>
+							<code>&lt;slot&#32;src=&quot;./card.css&quot;&#32;type=&quot;css&quot;&#32;/&gt;&#10;&lt;slot&#32;src=&quot;./card.ts&quot;&#32;type=&quot;script&quot;&#32;/&gt;</code>
+						</pre>
+					</div>
+					<p>
+						TypeScript is transpiled. Slot scripts are included in the combined module, while relative imported files are copied into dist and TypeScript imports become JavaScript. Ordinary inline component scripts get isolated wrappers.
+					</p>
+				</section>
+				<section class="step" id="template">
+					<div class="step-title">
+						<span>04</span>
+						<h2>
+							Keep a reusable template
+						</h2>
+					</div>
+					<p>
+						For dynamic content that depends on data available while the page is running, Vitemple provides <code>&lt;slot type="template"&gt;</code>. It imports a component as a native HTML template: a reusable starting point for creating DOM elements dynamically. Use it for lists, search results, or cards added after a user action or an API response.
+					</p>
+					<p>
+						The template stays hidden until your script clones its content. You can render as many independent copies as you need, populate each copy with runtime data, and insert it into the page. Attributes such as <code>id</code> are forwarded to the template; <code>src</code> and <code>type</code> control the import.
+					</p>
+					<div class="codebox">
+						<div class="codebar">
+							<span>Parent page</span><button class="copy" type="button" aria-label="Copy Parent page">Copy</button>
+						</div>
+						<pre>
+							<code>&lt;slot&#32;src=&quot;./item.html&quot;&#32;type=&quot;template&quot;&#32;id=&quot;item&quot;&#32;/&gt;&#10;&lt;section&#32;id=&quot;items&quot;&gt;&lt;/section&gt;</code>
+						</pre>
+					</div>
+					<div class="codebox">
+						<div class="codebar">
+							<span>item.html</span><button class="copy" type="button" aria-label="Copy item.html">Copy</button>
+						</div>
+						<pre>
+							<code>&lt;article&#32;class=&quot;item&quot;&gt;&#10;&#32;&#32;&lt;h3&#32;data-title&gt;&lt;/h3&gt;&#10;&lt;/article&gt;</code>
+						</pre>
+					</div>
+					<div class="codebox">
+						<div class="codebar">
+							<span>scripts.ts</span><button class="copy" type="button" aria-label="Copy scripts.ts">Copy</button>
+						</div>
+						<pre>
+							<code>const&#32;template&#32;=&#32;document.querySelector&lt;HTMLTemplateElement&gt;(&#x27;#item&#x27;);&#10;const&#32;container&#32;=&#32;document.querySelector(&#x27;#items&#x27;);&#10;const&#32;items&#32;=&#32;[{&#32;title:&#32;&#x27;First&#32;card&#x27;&#32;},&#32;{&#32;title:&#32;&#x27;Second&#32;card&#x27;&#32;}];&#10;&#10;for&#32;(const&#32;item&#32;of&#32;items)&#32;{&#10;&#32;&#32;&#32;&#32;const&#32;fragment&#32;=&#32;template.content.cloneNode(true)&#32;as&#32;DocumentFragment;&#10;&#32;&#32;&#32;&#32;const&#32;heading&#32;=&#32;fragment.querySelector(&#x27;[data-title]&#x27;);&#10;&#32;&#32;&#32;&#32;if&#32;(heading)&#32;heading.textContent&#32;=&#32;item.title;&#10;&#32;&#32;&#32;&#32;container.append(fragment);&#10;}</code>
+						</pre>
+					</div>
+					<div class="callout">
+						<strong>One template, two independent cards.</strong>
+						<p>
+							The loop renders “First card” and “Second card” from the same component. Here the data is a small array; it could also come from an API or user input. The script fills each clone using native DOM APIs, so there is no need to rebuild the page for every new item.
+						</p>
+					</div>
+					<p>
+						Slot attributes on the template import are still resolved at build time. Runtime values are assigned by your script, as with <code>textContent</code> above
+					</p>
+					<p>
+						Template scripts are extracted and scheduled once at DOMContentLoaded. They do not execute separately for each clone; initialize later-created clones explicitly.
+					</p>
+				</section>
+				<a class="next-page" href="./store.html">Next: Shared store <span>→</span></a>
+			</main>
+		</div>
+		<slot src="./components/footer.html" base="./" />
+		<slot src="./assets/site.ts" type="script" />
+	</body>
+</html>

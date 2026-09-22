@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { build, transformWithEsbuild, type Plugin } from 'vite';
 import { reactivityRuntime } from './reactivity.js';
@@ -91,14 +91,17 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
   let inline: RegExpExecArray | null;
   while ((inline = inlineRe.exec(cleaned))) {
     const attributes = inline[1]; const sourceCode = inline[2];
-    // Slot scripts carrying data-source are already compiled modules. Imports
-    // and exports also require module semantics, so leave those scripts alone.
-    if (/\bdata-source\s*=|\bdata-temple-scoped\s*=|\bimport\s|\bexport\s/.test(attributes + sourceCode)) continue;
-    const isTypeScript = /\blang\s*=\s*["']ts["']|\btype\s*=\s*["']ts["']/.test(attributes);
-    // Transpile TypeScript without asking esbuild for its own IIFE: the
-    // compiler adds exactly one isolation wrapper below.
+    // Slot scripts are already handled by the slot branch. Scripts with
+    // module syntax must stay at module scope, but type="ts" still needs its
+    // TypeScript syntax removed before all inline scripts are combined.
+    if (/\bdata-source\s*=|\bdata-temple-scoped\s*=/.test(attributes)) continue;
+    const isTypeScript = /\b(?:lang|type)\s*=\s*(?:["']ts["']|ts)(?:\s|$)/i.test(attributes);
+    const hasModuleSyntax = /\bimport\s|\bexport\s/.test(sourceCode);
+    if (hasModuleSyntax && !isTypeScript) continue;
     const js = isTypeScript ? (await transformWithEsbuild(sourceCode, filename, { loader: 'ts', format: 'esm' })).code : sourceCode;
-    const wrapped = `<script type="module" data-temple-scoped="true">(() => {\n${js}\n})();</script>`;
+    // Keep import/export at module scope; isolate ordinary inline scripts once.
+    const body = hasModuleSyntax ? js : `(() => {\n${js}\n})();`;
+    const wrapped = `<script type="module" data-temple-scoped="true">${body}</script>`;
     cleaned = cleaned.slice(0, inline.index) + wrapped + cleaned.slice(inline.index + inline[0].length);
     inlineRe.lastIndex = inline.index + wrapped.length;
   }
@@ -129,20 +132,92 @@ export function temple(): Plugin {
   return { name: 'temple', enforce: 'pre', async load(id) { if (!id.endsWith('?temple')) return; const styles: CollectedStyle[] = []; return `export default ${JSON.stringify(await expand(id.slice(0, -7), [], styles))};`; } };
 }
 
-export async function compile(entry: string, options: CompileOptions): Promise<{ javascript: string; html: string }> {
-  const outdir = path.resolve(options.outdir); await mkdir(outdir, { recursive: true });
-  const styles: CollectedStyle[] = []; const scripts = new Set<string>(); const templateScripts: string[] = []; const body = await expand(entry, [], styles, scripts, {}, templateScripts);
+function cssResourceUrls(css: string): string[] {
+  return [...css.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)|@import\s+(?:url\()?\s*(?:"([^"]*)"|'([^']*)')/gi)]
+    .map(match => match[1] ?? match[2] ?? match[3]?.trim() ?? match[4] ?? match[5] ?? '');
+}
+
+function localResourceUrls(html: string): string[] {
+  const urls: string[] = [];
+  for (const style of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) urls.push(...cssResourceUrls(style[1]));
+  const source = html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+  for (const tag of source.matchAll(/<([a-z][\w:-]*)\b([^>]*)>/gi)) {
+    if (tag[1].toLowerCase() === 'script') continue;
+    for (const attribute of tag[2].matchAll(/\b(href|src|poster|background|data|srcset)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+      const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
+      if (attribute[1].toLowerCase() === 'srcset') {
+        if (/\bdata:/i.test(value)) continue;
+        for (const candidate of value.split(',')) urls.push(candidate.trim().split(/\s+/, 1)[0]);
+      } else {
+        urls.push(value);
+      }
+    }
+  }
+  return urls;
+}
+
+function localUrlPath(value: string): string | undefined {
+  const url = value.trim();
+  if (!url || url.startsWith('#') || url.startsWith('//') || url.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(url)) return;
+  const pathname = url.split(/[?#]/, 1)[0];
+  if (!pathname) return;
+  try { return decodeURIComponent(pathname); } catch { return; }
+}
+
+async function copyLocalAsset(
+  value: string,
+  referringFile: string,
+  sourceRoot: string,
+  outputRoot: string,
+  copied: Set<string>,
+): Promise<void> {
+  const pathname = localUrlPath(value);
+  if (!pathname) return;
+  const sourceFile = path.resolve(path.dirname(referringFile), pathname);
+  const relative = path.relative(sourceRoot, sourceFile);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return;
+  if (/\.html?$/i.test(sourceFile)) return; // Pages are compiled separately.
+  try {
+    if (!(await stat(sourceFile)).isFile()) return;
+  } catch { return; }
+  if (copied.has(sourceFile)) return;
+  copied.add(sourceFile);
+
+  const outputFile = path.join(outputRoot, relative);
+  await mkdir(path.dirname(outputFile), { recursive: true });
+  await copyFile(sourceFile, outputFile);
+
+  if (/\.css$/i.test(sourceFile)) {
+    const css = await readFile(sourceFile, 'utf8');
+    for (const cssUrl of cssResourceUrls(css)) await copyLocalAsset(cssUrl, sourceFile, sourceRoot, outputRoot, copied);
+  }
+}
+
+async function copyLocalAssets(
+  html: string,
+  page: string,
+  sourceRoot: string,
+  outputRoot: string,
+  copied: Set<string>,
+): Promise<void> {
+  for (const url of localResourceUrls(html)) await copyLocalAsset(url, page, sourceRoot, outputRoot, copied);
+}
+
+async function compilePage(entry: string, outdir: string, storageKey: string): Promise<{ html: string; expandedHtml: string; styles: CollectedStyle[] }> {
+  await mkdir(outdir, { recursive: true });
+  const styles: CollectedStyle[] = []; const scripts = new Set<string>(); const templateScripts: string[] = [];
+  const expandedHtml = await expand(entry, [], styles, scripts, {}, templateScripts);
   for (const script of scripts) await copyImports(script, path.dirname(path.resolve(entry)), outdir);
-  const html = path.join(outdir, 'index.html');
+  const html = path.join(outdir, path.basename(entry));
   // Keep the authored document structure. Only inject collected styles into an
   // authored <head>; never synthesize doctype/html/head/body elements.
   const styleMarkup = styles.map(s => `<style data-source="${s.source}">${minifyCss(s.css)}</style>`).join('');
   const scriptsMarkup = templateScripts.join('\n');
-  const withScripts = /<\/body\s*>/i.test(body) ? body.replace(/<\/body\s*>/i, `${scriptsMarkup}\n</body>`) : body + scriptsMarkup;
+  const withScripts = /<\/body\s*>/i.test(expandedHtml) ? expandedHtml.replace(/<\/body\s*>/i, `${scriptsMarkup}\n</body>`) : expandedHtml + scriptsMarkup;
   const scriptBlocks = withScripts.match(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi) ?? [];
   const scriptCode = scriptBlocks.map(script => script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '').replace(/^\s*import\s+\{\s*shared\s*\}\s+from\s+['"]\.\/temple-runtime\.js['"];?\s*$/gim, '')).join('\n');
   const withoutScripts = withScripts.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
-  const minifiedScript = (await transformWithEsbuild(`${reactivityRuntime}\n${scriptCode}`, path.join(outdir, 'temple-bundle.ts'), {
+  const minifiedScript = (await transformWithEsbuild(`${reactivityRuntime(storageKey)}\n${scriptCode}`, path.join(outdir, 'temple-bundle.ts'), {
     loader: 'ts', format: 'esm', target: 'es2022', minify: true,
   })).code;
   const combinedScript = `<script type="module">${minifiedScript}</script>`;
@@ -157,5 +232,82 @@ export async function compile(entry: string, options: CompileOptions): Promise<{
     .replace(/\s+(<\/[A-Za-z][\w:-]*\s*>)/g, '$1')
     .replace(/(<(?:style|script)\b[^>]*>)\s*([\s\S]*?)\s*(<\/(?:style|script)\s*>)/gi, (_match, open, content, close) => `${open}${content.trim()}${close}`);
   await writeFile(html, trimmedBlocks + '\n');
-  return { javascript: '', html };
+  return { html, expandedHtml, styles };
+}
+
+function localAnchorHrefs(html: string): string[] {
+  const hrefs: string[] = [];
+  for (const match of html.matchAll(/<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi)) {
+    const href = (match[1] ?? match[2] ?? match[3] ?? '').trim();
+    if (!href || href.startsWith('#') || href.startsWith('//') || href.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(href)) continue;
+    hrefs.push(href);
+  }
+  return hrefs;
+}
+
+async function resolveLinkedPage(href: string, referringPage: string, sourceRoot: string): Promise<string | undefined> {
+  const pathname = href.split(/[?#]/, 1)[0];
+  if (!pathname) return;
+  let decodedPath: string;
+  try { decodedPath = decodeURIComponent(pathname); } catch { return; }
+  const target = path.resolve(path.dirname(referringPage), decodedPath);
+  const relative = path.relative(sourceRoot, target);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return;
+
+  const candidates = path.extname(target)
+    ? (/\.html?$/i.test(target) ? [target] : [])
+    : (pathname.endsWith('/') ? [path.join(target, 'index.html')] : [`${target}.html`, path.join(target, 'index.html')]);
+  for (const candidate of candidates) {
+    try {
+      if ((await stat(candidate)).isFile()) return candidate;
+    } catch { /* A missing or non-page link is an ordinary browser URL. */ }
+  }
+}
+
+async function resolveStorageKey(entryFile: string): Promise<string> {
+  let directory = path.dirname(entryFile);
+  while (true) {
+    try {
+      const manifest = JSON.parse(await readFile(path.join(directory, 'package.json'), 'utf8')) as { name?: unknown };
+      if (typeof manifest.name === 'string' && manifest.name.trim()) return `vitemple-store:${manifest.name.trim()}`;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  return 'vitemple-store';
+}
+
+export async function compile(entry: string, options: CompileOptions): Promise<{ javascript: string; html: string }> {
+  const entryFile = path.resolve(entry);
+  const sourceRoot = path.dirname(entryFile);
+  const storageKey = await resolveStorageKey(entryFile);
+  const outputRoot = path.resolve(options.outdir);
+  const pending = [entryFile];
+  const compiled = new Set<string>();
+  const copiedAssets = new Set<string>();
+  let rootResult: { javascript: string; html: string } | undefined;
+
+  while (pending.length) {
+    const page = pending.shift()!;
+    if (compiled.has(page)) continue;
+    compiled.add(page);
+    const relativeDirectory = path.relative(sourceRoot, path.dirname(page));
+    const pageOutdir = path.join(outputRoot, relativeDirectory);
+    const result = await compilePage(page, pageOutdir, storageKey);
+    await copyLocalAssets(result.expandedHtml, page, sourceRoot, outputRoot, copiedAssets);
+    for (const style of result.styles) {
+      for (const url of cssResourceUrls(style.css)) await copyLocalAsset(url, page, sourceRoot, outputRoot, copiedAssets);
+    }
+    if (page === entryFile) rootResult = { javascript: '', html: result.html };
+
+    for (const href of localAnchorHrefs(result.expandedHtml)) {
+      const linkedPage = await resolveLinkedPage(href, page, sourceRoot);
+      if (linkedPage && !compiled.has(linkedPage)) pending.push(linkedPage);
+    }
+  }
+
+  return rootResult!;
 }

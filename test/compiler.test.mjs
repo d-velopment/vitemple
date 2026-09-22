@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { JSDOM } from 'jsdom';
 import { compile } from '../dist/compiler.js';
 
 test('keeps HTML, expands slots, moves styles, transpiles scripts', async t => {
@@ -15,6 +16,113 @@ test('keeps HTML, expands slots, moves styles, transpiles scripts', async t => {
   assert.match(output, /<p>\s*Child\s*<\/p>/); assert.doesNotMatch(output, /<slot/);
   assert.match(output, /^<!doctype html>\s*<html>\s*<head>\s*<style data-source="child.html">/i);
   assert.match(output, /export\{[^}]*store/);
+});
+
+test('discovers and builds locally linked HTML pages once', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, 'guide'), { recursive: true });
+  await writeFile(path.join(dir, 'index.html'), '<html><body><slot src="./nav.html" /></body></html>');
+  await writeFile(path.join(dir, 'nav.html'), '<nav><a href="./about.html#team">About</a><a href="guide/">Guide</a><a href="#top">Top</a><a href="https://example.com/outside.html">External</a></nav>');
+  await writeFile(path.join(dir, 'about.html'), '<html><body><h1>About</h1><a href="./index.html">Home</a></body></html>');
+  await writeFile(path.join(dir, 'guide', 'index.html'), '<html><head><style>.guide { background: url("../guide-bg.svg"); }</style></head><body><h1>Guide</h1><a href="../about.html">About</a></body></html>');
+  await writeFile(path.join(dir, 'guide-bg.svg'), '<svg>guide background</svg>');
+
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+
+  assert.equal(result.html, path.join(dir, 'out', 'index.html'));
+  assert.match(await readFile(path.join(dir, 'out', 'about.html'), 'utf8'), /<h1>About<\/h1>/);
+  assert.match(await readFile(path.join(dir, 'out', 'guide', 'index.html'), 'utf8'), /<h1>Guide<\/h1>/);
+  assert.match(await readFile(path.join(dir, 'out', 'guide-bg.svg'), 'utf8'), /guide background/);
+});
+
+test('copies local assets and assets referenced by copied CSS', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, 'assets'), { recursive: true });
+  await mkdir(path.join(dir, 'images'), { recursive: true });
+  await mkdir(path.join(dir, 'downloads'), { recursive: true });
+  await writeFile(path.join(dir, 'index.html'), '<html><head><link rel="stylesheet" href="./assets/site.css"></head><body><slot src="./child.html" /><img src="./images/logo.svg"><a href="./downloads/guide.pdf">Download</a></body></html>');
+  await writeFile(path.join(dir, 'child.html'), '<style>.card { background-image: url("./images/component.svg"); }</style><p>Child</p>');
+  await writeFile(path.join(dir, 'assets', 'site.css'), '.hero { background-image: url("../images/background.svg"); }');
+  await writeFile(path.join(dir, 'images', 'logo.svg'), '<svg>logo</svg>');
+  await writeFile(path.join(dir, 'images', 'background.svg'), '<svg>background</svg>');
+  await writeFile(path.join(dir, 'images', 'component.svg'), '<svg>component</svg>');
+  await writeFile(path.join(dir, 'downloads', 'guide.pdf'), 'pdf bytes');
+
+  await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+
+  assert.match(await readFile(path.join(dir, 'out', 'assets', 'site.css'), 'utf8'), /background\.svg/);
+  assert.match(await readFile(path.join(dir, 'out', 'images', 'logo.svg'), 'utf8'), /logo/);
+  assert.match(await readFile(path.join(dir, 'out', 'images', 'background.svg'), 'utf8'), /background/);
+  assert.match(await readFile(path.join(dir, 'out', 'images', 'component.svg'), 'utf8'), /component/);
+  assert.equal(await readFile(path.join(dir, 'out', 'downloads', 'guide.pdf'), 'utf8'), 'pdf bytes');
+});
+
+test('preserves the entry HTML filename in the output', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const entry = path.join(dir, 'about.html');
+  await writeFile(entry, '<html><body><h1>About</h1></body></html>');
+
+  const result = await compile(entry, { outdir: path.join(dir, 'out') });
+
+  assert.equal(result.html, path.join(dir, 'out', 'about.html'));
+  assert.match(await readFile(result.html, 'utf8'), /<h1>About<\/h1>/);
+});
+
+test('transpiles inline script type=ts blocks in HTML', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, 'index.html'), '<html><body><script type=\"ts\">interface Message { text: string } const message: Message = { text: \'ready\' }; console.log(message.text);</script></body></html>');
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+  const output = await readFile(result.html, 'utf8');
+  assert.doesNotMatch(output, /interface Message|message\s*:\s*Message|text\s*:\s*string/);
+  assert.match(output, /console\.log/);
+  assert.doesNotMatch(output, /type=\"ts\"/);
+});
+
+test('store runtime internals do not collide with component script names', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const entry = path.join(dir, 'index.html');
+  await writeFile(entry, '<html><body><slot src="./component.ts" type="script" /></body></html>');
+  await writeFile(path.join(dir, 'component.ts'), "const current = 23; const storageKey = 'component'; const persist = () => {}; const listeners = []; store.init({ counter: current }); document.body.dataset.counter = String(store.value.counter);");
+
+  const result = await compile(entry, { outdir: path.join(dir, 'out') });
+  const html = await readFile(result.html, 'utf8');
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+
+  const dom = new JSDOM(html, { url: 'https://example.test/', runScripts: 'outside-only' });
+  dom.window.eval(script.replace(/export\s*\{[^}]*\};?\s*$/, ''));
+  assert.equal(dom.window.document.body.dataset.counter, '23');
+  dom.window.close();
+});
+
+test('store.init fills missing fields and preserves restored values', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const entry = path.join(dir, 'index.html');
+  await writeFile(path.join(dir, 'package.json'), JSON.stringify({ name: 'store-test-app' }));
+  await writeFile(entry, '<html><body><script type="ts">store.init({ ...store.value, counter: 0 }); document.body.dataset.counter = String(store.value.counter);</script></body></html>');
+  const result = await compile(entry, { outdir: path.join(dir, 'out') });
+  const html = await readFile(result.html, 'utf8');
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+  const executable = script.replace(/export\s*\{[^}]*\};?\s*$/, '');
+
+  const emptyStoreDom = new JSDOM(html, { url: 'https://example.test/', runScripts: 'outside-only' });
+  emptyStoreDom.window.eval(executable);
+  assert.equal(emptyStoreDom.window.document.body.dataset.counter, '0');
+  assert.deepEqual(JSON.parse(emptyStoreDom.window.sessionStorage.getItem('vitemple-store:store-test-app')), { counter: 0 });
+  emptyStoreDom.window.close();
+
+  const restoredStoreDom = new JSDOM(html, { url: 'https://example.test/', runScripts: 'outside-only' });
+  restoredStoreDom.window.sessionStorage.setItem('vitemple-store:store-test-app', JSON.stringify({ counter: 12 }));
+  restoredStoreDom.window.eval(executable);
+  assert.equal(restoredStoreDom.window.document.body.dataset.counter, '12');
+  assert.deepEqual(JSON.parse(restoredStoreDom.window.sessionStorage.getItem('vitemple-store:store-test-app')), { counter: 12 });
+  restoredStoreDom.window.close();
 });
 
 test('reports circular slots', async t => {

@@ -9,6 +9,7 @@ declare module '*.html?temple' {
 interface TempleStore<T extends object = Record<string, unknown>> {
   value: T;
   set(next: T): void;
+  init(initial: Partial<T>): void;
   update(updater: (current: T) => T): void;
   subscribe(listener: (value: T) => void): () => void;
 }
