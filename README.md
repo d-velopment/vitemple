@@ -7,7 +7,7 @@
 [![Native DOM](https://img.shields.io/badge/rendering-native%20DOM-0f766e?style=flat-square)](#design-principles)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b?style=flat-square)](./LICENSE)
 
-Vitemple lets you build reactive multi-page sites with TypeScript-based HTML files, reusable components and native browser APIs.
+Vitemple lets you build static reactive multi-page sites with TypeScript-based HTML files, reusable components and native browser APIs.
 
 [Read the full documentation →](https://d-velopment.github.io/vitemple/)
 
