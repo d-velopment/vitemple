@@ -42,7 +42,7 @@
 							<span>Terminal</span><button class="copy" type="button" aria-label="Copy Terminal">Copy</button>
 						</div>
 						<pre>
-							<code>mkdir&#32;hello-vitemple&#10;cd&#32;hello-vitemple&#10;npm&#32;init&#32;-y&#10;npm&#32;install&#32;vitemple&#10;npm&#32;install&#32;--save-dev&#32;vite</code>
+							<code>mkdir&#32;hello-vitemple&#10;cd&#32;hello-vitemple&#10;npm&#32;install&#32;vitemple</code>
 						</pre>
 					</div>
 				</section>
@@ -54,14 +54,14 @@
 						</h2>
 					</div>
 					<p>
-						Set the project to ES modules and replace the scripts section in package.json. Keep the dependencies added by npm.
+						Vitemple adds the starter scripts during installation. Keep the dependencies added by npm and preserve any scripts your project already defines.
 					</p>
 					<div class="codebox">
 						<div class="codebar">
 							<span>package.json · fields to add or replace</span><button class="copy" type="button" aria-label="Copy package.json · fields to add or replace">Copy</button>
 						</div>
 						<pre>
-							<code>&quot;type&quot;:&#32;&quot;module&quot;,&#10;&quot;scripts&quot;:&#32;{&#10;&#32;&#32;&quot;build&quot;:&#32;&quot;vitemple&#32;src/index.html&#32;--outdir&#32;dist&quot;,&#10;&#32;&#32;&quot;dev&quot;:&#32;&quot;node&#32;node_modules/vitemple/scripts/dev.mjs&quot;,&#10;&#32;&#32;&quot;start&quot;:&#32;&quot;vite&#32;preview&quot;&#10;}</code>
+							<code>&quot;scripts&quot;:&#32;{&#10;&#32;&#32;&quot;start&quot;:&#32;&quot;npm&#32;run&#32;build&#32;&amp;&amp;&#32;node&#32;node_modules/vitemple/scripts/preview.mjs&quot;,&#10;&#32;&#32;&quot;dev&quot;:&#32;&quot;node&#32;node_modules/vitemple/scripts/dev.mjs&quot;,&#10;&#32;&#32;&quot;build&quot;:&#32;&quot;vitemple&#32;src/index.html&#32;--outdir&#32;dist&quot;&#10;}</code>
 						</pre>
 					</div>
 				</section>

@@ -5,6 +5,18 @@ import { reactivityRuntime } from './reactivity.js';
 
 export interface CompileOptions { outdir: string; params?: Record<string, unknown> }
 const rewriteTsImports = (code: string) => code.replace(/((?:from\s*|import\s*)['"])(\.\.?\/[^'"]+?)(['"])/g, (_m, before, specifier, after) => before + (/.tsx?$/.test(specifier) ? specifier.replace(/\.tsx?$/, '.js') : specifier) + after);
+function rewriteInlineImports(code: string, sourceFile: string, pageSourceDirectory: string): string {
+  return code.replace(/((?:from\s*|import\s*)['"])(\.\.?\/[^'"]+?)(['"])/g, (_match, before, specifier, after) => {
+    const suffixIndex = specifier.search(/[?#]/);
+    const sourceSpecifier = suffixIndex === -1 ? specifier : specifier.slice(0, suffixIndex);
+    const suffix = suffixIndex === -1 ? '' : specifier.slice(suffixIndex);
+    const sourceDependency = path.resolve(path.dirname(sourceFile), sourceSpecifier);
+    const outputDependency = sourceDependency.replace(/\.tsx?$/, '.js');
+    let outputSpecifier = path.relative(pageSourceDirectory, outputDependency).split(path.sep).join('/');
+    if (!outputSpecifier.startsWith('.')) outputSpecifier = `./${outputSpecifier}`;
+    return before + outputSpecifier + suffix + after;
+  });
+}
 function slotAttributes(text: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const match of text.matchAll(/([A-Za-z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) result[match[1]] = match[2] ?? match[3] ?? match[4] ?? '';
@@ -49,7 +61,7 @@ function minifyCss(css: string): string {
 }
 
 type CollectedStyle = { css: string; source: string };
-async function expand(entry: string, stack: string[], styles: CollectedStyle[], scripts = new Set<string>(), params: Record<string, string> = {}, templateScripts: string[] = []): Promise<string> {
+async function expand(entry: string, stack: string[], styles: CollectedStyle[], scripts = new Set<string>(), params: Record<string, string> = {}, templateScripts: string[] = [], pageSourceDirectory = path.dirname(path.resolve(entry))): Promise<string> {
   const filename = path.resolve(entry);
   if (stack.includes(filename)) throw new Error(`Circular component import: ${[...stack, filename].join(' -> ')}`);
   const source = interpolateParams(await readFile(filename, 'utf8'), params);
@@ -66,9 +78,9 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
     const passedAttributes = slotAttributes(match[1]);
     let replacement = '';
     if (type === 'css') { const css = await readFile(target, 'utf8'); if (!styles.some(s => s.css === css)) styles.push({ css, source: path.basename(target) }); }
-      else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const isTypeScript = type === 'ts' || /\.tsx?$/.test(target); const js = isTypeScript ? (await transformWithEsbuild(rewriteTsImports(code), target, { loader: 'ts', format: 'esm' })).code : rewriteTsImports(code); replacement = `<script type="module" data-source="${path.basename(target)}">${js}</script>`; }
+      else if (type === 'script' || type === 'ts' || type === 'js') { scripts.add(target); const code = await readFile(target, 'utf8'); const isTypeScript = type === 'ts' || /\.tsx?$/.test(target); const inlineCode = rewriteInlineImports(code, target, pageSourceDirectory); const js = isTypeScript ? (await transformWithEsbuild(inlineCode, target, { loader: 'ts', format: 'esm' })).code : inlineCode; replacement = `<script type="module" data-source="${path.basename(target)}">${js}</script>`; }
     else if (type === 'template') {
-      let content = await expand(target, [...stack, filename], styles, scripts, passedAttributes, templateScripts);
+      let content = await expand(target, [...stack, filename], styles, scripts, passedAttributes, templateScripts, pageSourceDirectory);
       const embeddedScripts = content.match(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi) ?? [];
       for (const script of embeddedScripts) {
         const body = script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '').replace(/^\s*import\s+\{\s*(?:shared|store)\s*\}\s+from\s+['"]\.\/temple-runtime\.js['"];?\s*$/gim, '');
@@ -84,7 +96,7 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
       const nameAttribute = name ? ` name="${name.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"` : '';
       replacement = `<template data-source="${path.basename(target)}"${id}${nameAttribute}${templateAttributes}>${content}</template>`;
     }
-    else replacement = await expand(target, [...stack, filename], styles, scripts, passedAttributes);
+    else replacement = await expand(target, [...stack, filename], styles, scripts, passedAttributes, templateScripts, pageSourceDirectory);
     cleaned = cleaned.slice(0, match.index) + replacement + cleaned.slice(match.index + match[0].length); slotRe.lastIndex = match.index + replacement.length;
   }
   const inlineRe = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
@@ -98,7 +110,8 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
     const isTypeScript = /\b(?:lang|type)\s*=\s*(?:["']ts["']|ts)(?:\s|$)/i.test(attributes);
     const hasModuleSyntax = /\bimport\s|\bexport\s/.test(sourceCode);
     if (hasModuleSyntax && !isTypeScript) continue;
-    const js = isTypeScript ? (await transformWithEsbuild(sourceCode, filename, { loader: 'ts', format: 'esm' })).code : sourceCode;
+    const inlineCode = hasModuleSyntax ? rewriteInlineImports(sourceCode, filename, pageSourceDirectory) : sourceCode;
+    const js = isTypeScript ? (await transformWithEsbuild(inlineCode, filename, { loader: 'ts', format: 'esm' })).code : inlineCode;
     // Keep import/export at module scope; isolate ordinary inline scripts once.
     const body = hasModuleSyntax ? js : `(() => {\n${js}\n})();`;
     const wrapped = `<script type="module" data-temple-scoped="true">${body}</script>`;
@@ -213,7 +226,7 @@ async function compilePage(entry: string, outdir: string, storageKey: string): P
   // authored <head>; never synthesize doctype/html/head/body elements.
   const styleMarkup = styles.map(s => `<style data-source="${s.source}">${minifyCss(s.css)}</style>`).join('');
   const scriptsMarkup = templateScripts.join('\n');
-  const withScripts = /<\/body\s*>/i.test(expandedHtml) ? expandedHtml.replace(/<\/body\s*>/i, `${scriptsMarkup}\n</body>`) : expandedHtml + scriptsMarkup;
+  const withScripts = /<\/body\s*>/i.test(expandedHtml) ? expandedHtml.replace(/<\/body\s*>/i, () => `${scriptsMarkup}\n</body>`) : expandedHtml + scriptsMarkup;
   const scriptBlocks = withScripts.match(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi) ?? [];
   const scriptCode = scriptBlocks.map(script => script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '').replace(/^\s*import\s+\{\s*shared\s*\}\s+from\s+['"]\.\/temple-runtime\.js['"];?\s*$/gim, '')).join('\n');
   const withoutScripts = withScripts.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
@@ -224,7 +237,7 @@ async function compilePage(entry: string, outdir: string, storageKey: string): P
   const withHeadAssets = /<head\b[^>]*>/i.test(withoutScripts)
     ? withoutScripts.replace(/(<head\b[^>]*>)/i, `$1${styleMarkup}`)
     : withoutScripts;
-  const output = /<\/body\s*>/i.test(withHeadAssets) ? withHeadAssets.replace(/<\/body\s*>/i, `${combinedScript}\n</body>`) : withHeadAssets + combinedScript;
+  const output = /<\/body\s*>/i.test(withHeadAssets) ? withHeadAssets.replace(/<\/body\s*>/i, () => `${combinedScript}\n</body>`) : withHeadAssets + combinedScript;
   // Production output is intentionally compact: one physical line.
   const compact = formatHtml(output).replace(/\n/g, '').replace(/ {2,}/g, ' ').trim();
   const trimmedBlocks = compact

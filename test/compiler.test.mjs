@@ -81,6 +81,16 @@ test('transpiles inline script type=ts blocks in HTML', async t => {
   assert.doesNotMatch(output, /type=\"ts\"/);
 });
 
+test('does not interpret replacement tokens inside generated scripts', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const entry = path.join(dir, 'index.html');
+  await writeFile(entry, `<html><head></head><body><script type="ts">const popupOptToggleButton = '$&'; console.log(popupOptToggleButton);</script></body></html>`);
+  const result = await compile(entry, { outdir: path.join(dir, 'out') });
+  const output = await readFile(result.html, 'utf8');
+  assert.equal((output.match(/<\/body>/gi) ?? []).length, 1);
+  assert.match(output, /\$&/);
+});
+
 test('store runtime internals do not collide with component script names', async t => {
   const dir = await mkdtemp(path.resolve('.temple-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
@@ -141,6 +151,22 @@ test('copies relative script imports into dist', async t => {
   await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
   await access(path.join(dir, 'out/scripts/lib/value.js'));
   await assert.rejects(access(path.join(dir, 'out/scripts/main.ts')));
+});
+
+test('rebases component script imports to the output page location', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, 'components'), { recursive: true });
+  await mkdir(path.join(dir, 'utils'), { recursive: true });
+  await writeFile(path.join(dir, 'index.html'), '<html><body><slot src="./components/component.ts" type="script" /></body></html>');
+  await writeFile(path.join(dir, 'components/component.ts'), "import { utility } from '../utils/utility.ts'; document.body.dataset.value = utility;");
+  await writeFile(path.join(dir, 'utils/utility.ts'), "export const utility: string = 'ready';");
+
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+  const html = await readFile(result.html, 'utf8');
+
+  assert.match(html, /from["']\.\/utils\/utility\.js["']/);
+  assert.doesNotMatch(html, /from["']\.\.\/utils\/utility\.js["']/);
+  assert.match(await readFile(path.join(dir, 'out/utils/utility.js'), 'utf8'), /utility = ['"]ready['"]/);
 });
 
 test('transpiles imported TypeScript and rewrites extension', async t => {
@@ -205,10 +231,11 @@ test('keeps unknown placeholders for runtime replacement', async t => {
 test('moves template scripts out and emits them once before body end', async t => {
   const dir = await mkdtemp(path.resolve('.temple-test-')); t.after(() => rm(dir, { recursive: true, force: true }));
   await writeFile(path.join(dir, 'index.html'), '<body><slot src="./card.html" type="template" name="card" /><slot src="./card.html" type="template" name="card2" /></body>');
-  await writeFile(path.join(dir, 'card.html'), '<article>Card</article><script>console.log("card");</script>');
+  await writeFile(path.join(dir, 'card.html'), '<article>Card</article><script>console.log("$&");</script>');
   const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
   const output = await readFile(result.html, 'utf8');
-  assert.equal((output.match(/console\.log\("card"\)/g) ?? []).length, 1);
+  assert.equal((output.match(/console\.log\("\$&"\)/g) ?? []).length, 1);
+  assert.equal((output.match(/<\/body>/gi) ?? []).length, 1);
   assert.match(output, /<\/template>[\s\S]*<script type="module">[\s\S]*DOMContentLoaded[\s\S]*console\.log/);
   assert.ok(output.indexOf('console.log') < output.indexOf('</body>'));
 });

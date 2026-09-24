@@ -2,7 +2,7 @@
 
 A concise record of Vitemple releases and the latest repository changes.
 
-## 0.2.5
+## 0.2.7
 
 ### Added
 
@@ -18,6 +18,8 @@ A concise record of Vitemple releases and the latest repository changes.
 
 ### Improved
 
+- Body tag injection now uses callback replacers, so `$&` and other replacement tokens in generated JavaScript remain unchanged.
+- Relative imports from component scripts are rebased to the output HTML location, including `.ts` imports rewritten to their emitted `.js` paths.
 - The compiler preserves each entry page's filename and emits linked pages at paths matching their local URLs; `index.html` remains the conventional default entry.
 - The documentation site now builds from its home page, relying on Vitemple to discover and compile its linked pages.
 - Documentation guidance and examples for native HTML composition, reusable templates, and the shared store.

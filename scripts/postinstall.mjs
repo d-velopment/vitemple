@@ -72,18 +72,41 @@ if (createdStarter) {
 }
 
 const packageFile = path.join(projectRoot, 'package.json');
-const packageJson = JSON.parse(await readFile(packageFile, 'utf8'));
+let packageJson;
+try {
+	packageJson = JSON.parse(await readFile(packageFile, 'utf8'));
+} catch (error) {
+	if (error.code !== 'ENOENT') throw error;
+	const frameworkPackage = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+	packageJson = {
+		name: path.basename(projectRoot),
+		version: '1.0.0',
+		description: '',
+		main: 'index.js',
+		scripts: {},
+		keywords: [],
+		author: '',
+		license: 'ISC',
+		dependencies: { vitemple: `^${frameworkPackage.version}` },
+	};
+}
 const scripts = packageJson.scripts ?? {};
 const defaults = {
-	start: 'vite preview',
+	start: 'npm run build && node node_modules/vitemple/scripts/preview.mjs',
 	dev: 'node node_modules/vitemple/scripts/dev.mjs',
 	build: 'vitemple src/index.html --outdir dist',
 };
 const nextScripts = {};
 let changed = false;
 for (const [name, command] of Object.entries(defaults)) {
-	nextScripts[name] = scripts[name] ?? command;
-	if (!scripts[name]) changed = true;
+	const previousVitempleStart = 'node node_modules/vitemple/scripts/preview.mjs';
+	if (name === 'start' && scripts[name] === previousVitempleStart) {
+		nextScripts[name] = command;
+		changed = true;
+	} else {
+		nextScripts[name] = scripts[name] ?? command;
+		if (!scripts[name]) changed = true;
+	}
 }
 for (const [name, command] of Object.entries(scripts)) {
 	if (!(name in defaults)) nextScripts[name] = command;

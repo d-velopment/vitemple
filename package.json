@@ -1,6 +1,6 @@
 {
   "name": "vitemple",
-  "version": "0.2.5",
+  "version": "0.2.7",
   "type": "module",
   "description": "Vitemple lets you build static reactive multi-page sites with TypeScript-based HTML files, reusable components and native browser APIs.",
   "main": "dist/compiler.js",
@@ -16,18 +16,15 @@
     "README.md",
     "LICENSE",
     "src/components.d.ts",
+    "scripts/preview.mjs",
     "scripts/postinstall.mjs",
     "favicon.svg"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "prepare": "npm run build",
-    "example": "npm run build && node dist/cli.js ../vitemple-example/basic/src/index.html --outdir ../vitemple-example/basic/dist",
-    "example:watch": "node scripts/watch-example.mjs",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npx tsc && node --test test/*.test.mjs",
     "check": "tsc --noEmit",
-    "dev": "npm run build && vite",
-    "preview": "python3 -m http.server 4173 --directory ../vitemple-example/basic/dist",
     "dev:project": "node scripts/watch-project.mjs",
     "dev:docs": "node scripts/watch-project.mjs ./docs",
     "postinstall": "node scripts/postinstall.mjs"
@@ -44,5 +41,16 @@
     "type": "git",
     "url": "https://github.com/d-velopment/vitemple.git"
   },
-  "homepage": "https://d-velopment.github.io/vitemple/"
+  "homepage": "https://d-velopment.github.io/vitemple/",
+  "keywords": [
+    "vitemple",
+    "vite",
+    "native-dom",
+    "typescript",
+    "templating",
+    "framework",
+    "static-site",
+    "reactive",
+    "template"
+  ]
 }

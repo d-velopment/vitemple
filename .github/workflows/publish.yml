@@ -30,5 +30,12 @@ jobs:
       - name: Test and build
         run: npm test
 
+      - name: Check release version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          test "$TAG_VERSION" = "$PACKAGE_VERSION"
+
       - name: Publish to npm
         run: npm publish --ignore-scripts --provenance
