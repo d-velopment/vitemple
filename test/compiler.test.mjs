@@ -18,6 +18,17 @@ test('keeps HTML, expands slots, moves styles, transpiles scripts', async t => {
   assert.match(output, /export\{[^}]*store/);
 });
 
+test('preserves required whitespace around plus in CSS calculations', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, 'index.html'), '<html><head><style>.box { width: calc(1px + 10%); }</style></head><body></body></html>');
+
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+  const output = await readFile(result.html, 'utf8');
+
+  assert.match(output, /width:calc\(1px \+ 10%\)/);
+});
+
 test('discovers and builds locally linked HTML pages once', async t => {
   const dir = await mkdtemp(path.resolve('.temple-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
@@ -167,6 +178,24 @@ test('rebases component script imports to the output page location', async t => 
   assert.match(html, /from["']\.\/utils\/utility\.js["']/);
   assert.doesNotMatch(html, /from["']\.\.\/utils\/utility\.js["']/);
   assert.match(await readFile(path.join(dir, 'out/utils/utility.js'), 'utf8'), /utility = ['"]ready['"]/);
+});
+
+test('scopes inline component scripts with imports per instance', async t => {
+  const dir = await mkdtemp(path.resolve('.temple-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, 'components', 'utils'), { recursive: true });
+  await writeFile(path.join(dir, 'index.html'), '<html><body><slot src="./components/card.html" id="first" /><slot src="./components/card.html" id="second" /></body></html>');
+  await writeFile(path.join(dir, 'components/card.html'), '<article id="{id}"></article><script>import testo from "./utils/test.ts"; const article = document.getElementById("{id}"); if (article) article.dataset.result = testo();</script>');
+  await writeFile(path.join(dir, 'components/utils/test.ts'), 'export default function testo() { return "ready"; }');
+
+  const result = await compile(path.join(dir, 'index.html'), { outdir: path.join(dir, 'out') });
+  const output = await readFile(result.html, 'utf8');
+
+  assert.match(output, /import \w+ from["']\.\/components\/utils\/test\.js["']/);
+  assert.equal((output.match(/import \w+ from["']/g) ?? []).length, 1);
+  assert.match(output, /getElementById\("first"\)/);
+  assert.match(output, /getElementById\("second"\)/);
+  assert.match(await readFile(path.join(dir, 'out/components/utils/test.js'), 'utf8'), /function testo/);
 });
 
 test('transpiles imported TypeScript and rewrites extension', async t => {

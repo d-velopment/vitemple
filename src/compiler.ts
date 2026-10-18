@@ -1,5 +1,6 @@
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import * as ts from 'typescript';
 import { build, transformWithEsbuild, type Plugin } from 'vite';
 import { reactivityRuntime } from './reactivity.js';
 
@@ -16,6 +17,15 @@ function rewriteInlineImports(code: string, sourceFile: string, pageSourceDirect
     if (!outputSpecifier.startsWith('.')) outputSpecifier = `./${outputSpecifier}`;
     return before + outputSpecifier + suffix + after;
   });
+}
+function extractStaticImports(code: string): { imports: string[]; body: string } {
+  const source = ts.createSourceFile('inline-script.ts', code, ts.ScriptTarget.Latest, true);
+  const imports = source.statements.filter(ts.isImportDeclaration);
+  let body = code;
+  for (const declaration of [...imports].reverse()) {
+    body = body.slice(0, declaration.getStart(source)) + body.slice(declaration.end);
+  }
+  return { imports: imports.map(declaration => declaration.getText(source)), body };
 }
 function slotAttributes(text: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -55,7 +65,7 @@ function minifyCss(css: string): string {
   return css
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\s+/g, ' ')
-    .replace(/\s*([{}:;,>+~])\s*/g, '$1')
+    .replace(/\s*([{}:;,>~])\s*/g, '$1')
     .replace(/;}/g, '}')
     .trim();
 }
@@ -103,13 +113,19 @@ async function expand(entry: string, stack: string[], styles: CollectedStyle[], 
   let inline: RegExpExecArray | null;
   while ((inline = inlineRe.exec(cleaned))) {
     const attributes = inline[1]; const sourceCode = inline[2];
-    // Slot scripts are already handled by the slot branch. Scripts with
-    // module syntax must stay at module scope, but type="ts" still needs its
-    // TypeScript syntax removed before all inline scripts are combined.
+    // Slot scripts are handled by the slot branch. Relative module imports
+    // are rewritten here and hoisted when inline scripts are combined.
     if (/\bdata-source\s*=|\bdata-temple-scoped\s*=/.test(attributes)) continue;
     const isTypeScript = /\b(?:lang|type)\s*=\s*(?:["']ts["']|ts)(?:\s|$)/i.test(attributes);
     const hasModuleSyntax = /\bimport\s|\bexport\s/.test(sourceCode);
-    if (hasModuleSyntax && !isTypeScript) continue;
+    if (hasModuleSyntax) scripts.add(filename);
+    if (hasModuleSyntax && !isTypeScript) {
+      const inlineCode = rewriteInlineImports(sourceCode, filename, pageSourceDirectory);
+      const wrapped = `<script${attributes} data-temple-scoped="true">${inlineCode}</script>`;
+      cleaned = cleaned.slice(0, inline.index) + wrapped + cleaned.slice(inline.index + inline[0].length);
+      inlineRe.lastIndex = inline.index + wrapped.length;
+      continue;
+    }
     const inlineCode = hasModuleSyntax ? rewriteInlineImports(sourceCode, filename, pageSourceDirectory) : sourceCode;
     const js = isTypeScript ? (await transformWithEsbuild(inlineCode, filename, { loader: 'ts', format: 'esm' })).code : inlineCode;
     // Keep import/export at module scope; isolate ordinary inline scripts once.
@@ -228,9 +244,18 @@ async function compilePage(entry: string, outdir: string, storageKey: string): P
   const scriptsMarkup = templateScripts.join('\n');
   const withScripts = /<\/body\s*>/i.test(expandedHtml) ? expandedHtml.replace(/<\/body\s*>/i, () => `${scriptsMarkup}\n</body>`) : expandedHtml + scriptsMarkup;
   const scriptBlocks = withScripts.match(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi) ?? [];
-  const scriptCode = scriptBlocks.map(script => script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '').replace(/^\s*import\s+\{\s*shared\s*\}\s+from\s+['"]\.\/temple-runtime\.js['"];?\s*$/gim, '')).join('\n');
+  const moduleImports = new Set<string>();
+  const scriptCode = scriptBlocks.map(script => {
+    const attributes = script.match(/^<script\b([^>]*)>/i)?.[1] ?? '';
+    const body = script.replace(/^<script\b[^>]*>|<\/script\s*>$/gi, '').replace(/^\s*import\s+\{\s*shared\s*\}\s+from\s+['"]\.\/temple-runtime\.js['"];?\s*$/gim, '');
+    if (!/\bdata-temple-scoped\s*=/.test(attributes) || /\bexport\s/.test(body)) return body;
+    const extracted = extractStaticImports(body);
+    if (!extracted.imports.length) return body;
+    for (const declaration of extracted.imports) moduleImports.add(declaration);
+    return `(() => {\n${extracted.body}\n})();`;
+  }).join('\n');
   const withoutScripts = withScripts.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
-  const minifiedScript = (await transformWithEsbuild(`${reactivityRuntime(storageKey)}\n${scriptCode}`, path.join(outdir, 'temple-bundle.ts'), {
+  const minifiedScript = (await transformWithEsbuild(`${[...moduleImports].join('\n')}\n${reactivityRuntime(storageKey)}\n${scriptCode}`, path.join(outdir, 'temple-bundle.ts'), {
     loader: 'ts', format: 'esm', target: 'es2022', minify: true,
   })).code;
   const combinedScript = `<script type="module">${minifiedScript}</script>`;
