@@ -1,35 +1,51 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+/**
+ * Builds the Vitemple package by incrementing its patch version, updating package and changelog metadata, and invoking the TypeScript compiler.
+ */
+import { readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 
-const packageFile = new URL('../package.json', import.meta.url);
-const packageJson = JSON.parse(await readFile(packageFile, 'utf8'));
-const versionParts = String(packageJson.version ?? '0.0.0').split('.');
+// ----------------------------------------------------------------- Version metadata and package compilation
+const packageFile = new URL("../package.json", import.meta.url);
+const packageJson = JSON.parse(await readFile(packageFile, "utf8"));
+const versionParts = String(packageJson.version ?? "0.0.0").split(".");
 versionParts[2] = String(Number(versionParts[2] ?? 0) + 1);
-packageJson.version = versionParts.join('.');
+packageJson.version = versionParts.join(".");
 await writeFile(packageFile, `${JSON.stringify(packageJson, null, 2)}\n`);
 
-const changelogFile = new URL('../CHANGELOG.md', import.meta.url);
+const changelogFile = new URL("../CHANGELOG.md", import.meta.url);
 try {
-  const changelog = await readFile(changelogFile, 'utf8');
+  const changelog = await readFile(changelogFile, "utf8");
   const currentVersion = packageJson.version;
   const updatedChangelog = changelog.replace(
     /^## (?:Latest|\d+\.\d+\.\d+(?:-[\w.-]+)?)$/m,
     `## ${currentVersion}`,
   );
-  if (updatedChangelog !== changelog) await writeFile(changelogFile, updatedChangelog);
+  if (updatedChangelog !== changelog)
+    await writeFile(changelogFile, updatedChangelog);
 } catch {}
 
-const lockFile = new URL('../package-lock.json', import.meta.url);
+const lockFile = new URL("../package-lock.json", import.meta.url);
 try {
-  const lockJson = JSON.parse(await readFile(lockFile, 'utf8'));
+  const lockJson = JSON.parse(await readFile(lockFile, "utf8"));
   lockJson.version = packageJson.version;
-  if (lockJson.packages?.['']) lockJson.packages[''].version = packageJson.version;
+
+  if (lockJson.packages?.[""])
+    lockJson.packages[""].version = packageJson.version;
+
   await writeFile(lockFile, `${JSON.stringify(lockJson, null, 2)}\n`);
 } catch {}
 
-const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const child = spawn(command, ['tsc'], { stdio: 'inherit' });
-child.on('exit', (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exitCode = code ?? 1;
-});
+const command = process.platform === "win32" ? "npx.cmd" : "npx";
+const child = spawn(command, ["tsc"], { stdio: "inherit" });
+child.on(
+  "exit",
+
+  /* Handles the exit event and performs the required lifecycle work. */ (
+    code,
+    signal,
+  ) => {
+    if (signal) process.kill(process.pid, signal);
+    else process.exitCode = code ?? 1;
+  },
+
+);
