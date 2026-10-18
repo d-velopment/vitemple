@@ -1,6 +1,6 @@
 {
   "name": "vitemple",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "type": "module",
   "description": "Vitemple lets you build static reactive multi-page sites with TypeScript-based HTML files, reusable components and native browser APIs.",
   "main": "dist/compiler.js",
