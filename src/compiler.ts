@@ -1,7 +1,7 @@
 /**
- * Compiles HTML entry pages and recursively expands their slots. It collects styles and scripts, transpiles TypeScript, copies imports and assets, discovers linked pages, and writes static output; Vite integration and store runtime generation are delegated to their modules.
+ * Compiles HTML entry pages and recursively expands their slots. It collects styles and scripts, transpiles TypeScript, copies relative imports and assets, bundles bare package imports, discovers linked pages, and writes static output; Vite integration and store runtime generation are delegated to their modules.
  */
-import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as ts from "typescript";
 import { build, transformWithEsbuild, type Plugin } from "vite";
@@ -91,6 +91,103 @@ function extractStaticImports(code: string): {
     ),
     body,
   };
+}
+
+// ----------------------------------------------------------------- Package import bundling
+// Identifies package imports that need bundling so generated pages do not depend on a browser-side package resolver.
+function hasBarePackageImports(code: string): boolean {
+  const source = ts.createSourceFile(
+    "module-import.ts",
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+
+    if (
+      !ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
+      continue;
+    }
+
+    const specifier = statement.moduleSpecifier.text;
+    if (
+      !specifier.startsWith(".") &&
+      !specifier.startsWith("/") &&
+      !/^[a-z][a-z\d+.-]*:/i.test(specifier)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Bundles package imports into a browser-ready module while leaving already-copied page-relative modules external.
+async function bundlePackageImports(
+  code: string,
+  outdir: string,
+): Promise<string> {
+  const entry = path.join(outdir, ".temple-bundle-entry.ts");
+  await writeFile(entry, code);
+
+  try {
+    const result = await build({
+      configFile: false,
+      logLevel: "silent",
+      root: outdir,
+      build: {
+        emptyOutDir: false,
+        lib: {
+          entry,
+          formats: ["es"],
+        },
+        minify: true,
+        target: "es2022",
+        write: false,
+        rollupOptions: {
+          input: entry,
+          // Keeps copied app-relative modules separate from bundled package dependencies.
+          external: (specifier, importer) => {
+            if (!importer || !specifier.startsWith(".")) return false;
+
+            const relativeImporter = path.relative(outdir, importer);
+            const isPageModule =
+              relativeImporter === "" ||
+              (!relativeImporter.startsWith(`..${path.sep}`) &&
+                relativeImporter !== ".." &&
+                !path.isAbsolute(relativeImporter));
+            return isPageModule;
+          },
+          output: {
+            format: "es",
+            inlineDynamicImports: true,
+          },
+        },
+      },
+    });
+    const buildResults = Array.isArray(result) ? result : [result];
+    const outputs = [];
+    for (const item of buildResults) {
+      if ("output" in item) outputs.push(...item.output);
+    }
+
+    let bundle;
+    for (const item of outputs) {
+      if (item.type === "chunk" && item.isEntry) {
+        bundle = item;
+        break;
+      }
+    }
+
+    if (!bundle || bundle.type !== "chunk")
+      throw new Error("Vitemple could not generate the bundled script module.");
+
+    return bundle.code;
+  } finally {
+    await rm(entry, { force: true });
+  }
 }
 
 // ----------------------------------------------------------------- Slot parameter expansion
@@ -705,18 +802,25 @@ async function compilePage(
     /<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,
     "",
   );
-  const minifiedScript = (
-    await transformWithEsbuild(
-      `${[...moduleImports].join("\n")}\n${reactivityRuntime(storageKey)}\n${scriptCode}`,
-      path.join(outdir, "temple-bundle.ts"),
-      {
-        loader: "ts",
-        format: "esm",
-        target: "es2022",
-        minify: true,
-      },
-    )
-  ).code;
+  const combinedModule = [
+    [...moduleImports].join("\n"),
+    reactivityRuntime(storageKey),
+    scriptCode,
+  ].join("\n");
+  const minifiedScript = hasBarePackageImports(combinedModule)
+    ? await bundlePackageImports(combinedModule, outdir)
+    : (
+        await transformWithEsbuild(
+          combinedModule,
+          path.join(outdir, "temple-bundle.ts"),
+          {
+            loader: "ts",
+            format: "esm",
+            target: "es2022",
+            minify: true,
+          },
+        )
+      ).code;
   const combinedScript = `<script type="module">${minifiedScript}</script>`;
   const withHeadAssets = /<head\b[^>]*>/i.test(withoutScripts)
     ? withoutScripts.replace(/(<head\b[^>]*>)/i, `$1${styleMarkup}`)

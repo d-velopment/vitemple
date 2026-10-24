@@ -93,7 +93,7 @@ Components are ordinary HTML files. Slots import HTML fragments or external asse
 
 HTML slots are expanded recursively. Every slot attribute is available as a substitution in the imported fragment: `title="Hello"` replaces `{title}` and `{ title }`. The `src` and `type` attributes are available in the same way. Substitution happens before HTML, style, and script processing. Unknown placeholders remain unchanged for runtime use.
 
-CSS slots are deduplicated, minified, and inserted into the authored `<head>` as `<style data-source="...">`. TypeScript slots are transpiled and their relative imports are copied into `dist`; `.ts` import extensions are rewritten to `.js`.
+CSS slots are deduplicated, minified, and inserted into the authored `<head>` as `<style data-source="...">`. TypeScript slots are transpiled, relative imports are copied into `dist`, and bare package imports are bundled into the page module. `.ts` import extensions are rewritten to `.js`.
 
 ## Reusable templates
 
