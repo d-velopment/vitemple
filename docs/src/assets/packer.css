@@ -1,0 +1,229 @@
+.packer-tool section {
+  padding: 24px;
+  border: 1px solid var(--line, #dce2ed);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.packer-tool .tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.packer-tool .tabs button {
+  padding: 9px 20px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted, #57637b);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.packer-tool .tabs button[aria-selected="true"] {
+  border-color: var(--line, #dce2ed);
+  background: #fff;
+  color: var(--accent, #244ac0);
+}
+
+.packer-tool .drop-zone {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 30px 16px;
+  border: 1px dashed #9baac4;
+  border-radius: 10px;
+  background: #f8faff;
+  cursor: pointer;
+  text-align: center;
+}
+
+.packer-tool .drop-zone:hover,
+.packer-tool .drop-zone:focus-within,
+.packer-tool .drop-zone.is-dragging {
+  border-color: var(--accent, #315fe8);
+  background: #edf2ff;
+}
+
+.packer-tool .drop-zone:focus-within {
+  outline: 2px solid var(--accent, #315fe8);
+  outline-offset: 3px;
+}
+
+.packer-tool .drop-icon {
+  color: var(--accent, #315fe8);
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.packer-tool .drop-zone > span:last-of-type {
+  color: var(--muted, #57637b);
+  font-size: 13px;
+}
+
+.packer-tool input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.packer-tool .selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 24px 0 8px;
+}
+
+.packer-tool h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.packer-tool button,
+.packer-tool input {
+  font: inherit;
+}
+
+.packer-tool button:focus-visible,
+.packer-tool a:focus-visible,
+.packer-tool .filename-field:focus-within {
+  outline: 2px solid var(--accent, #315fe8);
+  outline-offset: 3px;
+}
+
+.packer-tool .text-button {
+  border: 0;
+  padding: 4px 0;
+  background: none;
+  color: var(--accent, #315fe8);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.packer-tool button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.packer-tool .file-list {
+  max-height: 220px;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.packer-tool .file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line, #edf0f5);
+  font-size: 13px;
+}
+
+.packer-tool .file-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.packer-tool .file-name[href] {
+  color: var(--accent, #244ac0);
+  text-underline-offset: 3px;
+}
+
+.packer-tool .file-download {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.packer-tool .file-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.packer-tool .file-thumbnail {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: #f4f6fa;
+  object-fit: contain;
+}
+
+.packer-tool .file-size {
+  flex-shrink: 0;
+  color: var(--muted, #57637b);
+}
+
+.packer-tool .filename-label {
+  display: block;
+  margin: 24px 0 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.packer-tool .filename-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #cfd7e6);
+  border-radius: 7px;
+}
+
+.packer-tool .filename-field input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.packer-tool .filename-field > span {
+  color: var(--muted, #57637b);
+  font-size: 13px;
+}
+
+.packer-tool .primary-button {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent, #315fe8);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.packer-tool .primary-button:hover:enabled {
+  background: var(--accent, #244ac0);
+}
+
+.packer-tool .status {
+  min-height: 21px;
+  margin: 14px 0 0;
+  color: var(--muted, #57637b);
+  font-size: 12px;
+}
+
+.packer-tool .status.is-error {
+  color: #b42318;
+}
+
+@media (max-width: 480px) {
+  .packer-tool section {
+    padding: 18px;
+  }
+}

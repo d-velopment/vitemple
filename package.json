@@ -1,10 +1,21 @@
 {
   "name": "vitemple",
-  "version": "0.2.8",
+  "version": "0.3.1",
   "type": "module",
   "description": "Vitemple lets you build static reactive multi-page sites with TypeScript-based HTML files, reusable components and native browser APIs.",
   "main": "dist/compiler.js",
   "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/compiler.js"
+    },
+    "./file-pack": {
+      "types": "./dist/file-pack/index.d.ts",
+      "default": "./dist/file-pack/index.js"
+    },
+    "./*": "./*"
+  },
   "bin": {
     "vitemple": "dist/cli.js"
   },
@@ -12,6 +23,7 @@
     "dist",
     "scripts/dev.mjs",
     "types/index.d.ts",
+    "src/file-pack/README.md",
     "tsconfig.json",
     "README.md",
     "LICENSE",
@@ -21,9 +33,9 @@
     "favicon.svg"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "node scripts/build.mjs && node scripts/minify.mjs",
     "prepare": "npm run build",
-    "test": "npx tsc && node --test test/*.test.mjs",
+    "test": "npx tsc && node scripts/minify.mjs && node --test test/*.test.mjs",
     "check": "tsc --noEmit",
     "dev:project": "node scripts/watch-project.mjs",
     "dev:docs": "node scripts/watch-project.mjs ./docs",

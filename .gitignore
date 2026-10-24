@@ -2,3 +2,4 @@
 node_modules/
 dist/
 .temple-*/
+docs/src/assets/file-pack.js

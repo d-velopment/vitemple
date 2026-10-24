@@ -2,6 +2,24 @@
 
 A concise record of Vitemple releases and the latest repository changes.
 
+## 0.3.1
+
+### Added
+
+- A dependency-free VPK1 file container with browser-native `createFilePack`, `readFilePack`, and `fetchFilePack` APIs, available through `vitemple/file-pack` with TypeScript declarations.
+- Sequential stream reading that yields complete files as Blobs while preserving their original bytes and MIME types, with byte progress, cancellation, configurable size budgets, and structural validation.
+- A Vitemple Packer page in the documentation, using the shared header, sidebar, and footer, with drag-and-drop packing and unpacking, individual download links, bulk download requests, and image thumbnails.
+- File-pack documentation alongside its source, covering the container format, resource limits, fetching and reading packs, Blob image sources, and Base64 data URLs.
+
+### Improved
+
+- Package builds remove code comments and minify every emitted JavaScript module in `dist`, including subdirectories, through Vite's esbuild transform. The test command checks this minified output.
+- The documentation loads the packer interface as a native ES module, copied unchanged alongside a local copy of the packaged file-pack library for static hosting.
+
+### Fixed
+
+- Package builds no longer overwrite existing release headings in CHANGELOG; release notes are maintained explicitly.
+
 ## 0.2.8
 
 ### Added

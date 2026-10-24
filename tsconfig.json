@@ -10,6 +10,7 @@
     ],
     "strict": true,
     "declaration": true,
+    "removeComments": true,
     "outDir": "dist",
     "rootDir": "src",
     "skipLibCheck": true

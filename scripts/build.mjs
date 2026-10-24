@@ -1,5 +1,5 @@
 /**
- * Builds the Vitemple package by incrementing its patch version, updating package and changelog metadata, and invoking the TypeScript compiler.
+ * Builds the Vitemple package by incrementing its patch version, updating package and lock file metadata, and invoking the TypeScript compiler.
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -11,18 +11,6 @@ const versionParts = String(packageJson.version ?? "0.0.0").split(".");
 versionParts[2] = String(Number(versionParts[2] ?? 0) + 1);
 packageJson.version = versionParts.join(".");
 await writeFile(packageFile, `${JSON.stringify(packageJson, null, 2)}\n`);
-
-const changelogFile = new URL("../CHANGELOG.md", import.meta.url);
-try {
-  const changelog = await readFile(changelogFile, "utf8");
-  const currentVersion = packageJson.version;
-  const updatedChangelog = changelog.replace(
-    /^## (?:Latest|\d+\.\d+\.\d+(?:-[\w.-]+)?)$/m,
-    `## ${currentVersion}`,
-  );
-  if (updatedChangelog !== changelog)
-    await writeFile(changelogFile, updatedChangelog);
-} catch {}
 
 const lockFile = new URL("../package-lock.json", import.meta.url);
 try {

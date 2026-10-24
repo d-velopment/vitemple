@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Vitemple Packer · Vitemple</title>
+    <meta
+      name="description"
+      content="Pack images, sounds, and data into one .vpack file or unpack them directly in your browser with Vitemple Packer."
+    >
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./assets/site.css">
+    <slot src="./assets/packer.css" type="css" />
+  </head>
+  <body data-page="packer">
+    <slot src="./components/header.html" base="./" />
+    <div class="docs-layout">
+      <slot src="./components/sidebar.html" base="./" />
+      <main id="main" class="doc-content">
+        <div class="eyebrow">TOOLS / FILE PACKS</div>
+        <h1>Vitemple <em>Packer</em></h1>
+        <p class="intro">
+          Images, sounds, and data. Pack your files into one .vpack or open an existing pack to download its contents. Original bytes, no compression.
+        </p>
+        <div class="packer-tool">
+          <div class="tabs" role="tablist" aria-label="File pack tools">
+            <button
+              id="pack-tab"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="pack-panel"
+              tabindex="0"
+            >Pack</button>
+            <button
+              id="unpack-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="unpack-panel"
+              tabindex="-1"
+            >Unpack</button>
+          </div>
+          <section
+            id="pack-panel"
+            role="tabpanel"
+            aria-labelledby="pack-tab"
+          >
+            <label id="drop-zone" class="drop-zone" for="files">
+              <span class="drop-icon" aria-hidden="true">↓</span>
+              <strong>Drop files here</strong>
+              <span>or choose files from your device</span>
+              <input id="files" type="file" multiple>
+            </label>
+            <div class="selection">
+              <h2 id="summary">No files selected</h2>
+              <button id="clear" class="text-button" type="button" disabled>Clear</button>
+            </div>
+            <ul id="file-list" class="file-list" aria-label="Selected files"></ul>
+            <form id="pack-form">
+              <label class="filename-label" for="filename">Pack name</label>
+              <div class="filename-field">
+                <input
+                  id="filename"
+                  name="filename"
+                  type="text"
+                  value="files"
+                  maxlength="100"
+                  required
+                >
+                <span>.vpack</span>
+              </div>
+              <button id="download" class="primary-button" type="submit" disabled>
+                Download pack
+              </button>
+            </form>
+            <p id="status" class="status" role="status" aria-live="polite">
+              Choose files to get started.
+            </p>
+          </section>
+          <section
+            id="unpack-panel"
+            role="tabpanel"
+            aria-labelledby="unpack-tab"
+            hidden
+          >
+            <label id="unpack-drop-zone" class="drop-zone" for="pack-file">
+              <span class="drop-icon" aria-hidden="true">↓</span>
+              <strong>Drop a .vpack file here</strong>
+              <span>or choose a pack from your device</span>
+              <input id="pack-file" type="file" accept=".vpack">
+            </label>
+            <div class="selection">
+              <h2 id="unpack-summary">No pack selected</h2>
+              <button id="unpack-clear" class="text-button" type="button" disabled>Clear</button>
+            </div>
+            <ul id="unpacked-list" class="file-list" aria-label="Files in pack"></ul>
+            <button id="download-all" class="primary-button" type="button" disabled>
+              Download all
+            </button>
+            <p id="unpack-status" class="status" role="status" aria-live="polite">
+              Choose a .vpack file to see its contents.
+            </p>
+          </section>
+        </div>
+        <p class="caption">
+          Files stay on your device. Images show a small preview when unpacked. Download all may be limited by your browser; individual download links remain available.
+        </p>
+        <section class="step" id="use-in-code">
+          <div class="step-title">
+            <span>01</span>
+            <h2>Read packs in your app</h2>
+          </div>
+          <p>
+            Import <code>fetchFilePack</code> to load a pack from a URL, or <code>readFilePack</code> to open a selected File or Blob. Each file is returned as <code>{ name, blob }</code>, with its original MIME type. Neither method saves files to disk.
+          </p>
+          <div class="codebox">
+            <div class="codebar">
+              <span>Fetch a pack</span>
+              <button class="copy" type="button" aria-label="Copy fetch example">Copy</button>
+            </div>
+            <pre><code>import&#32;{&#32;fetchFilePack&#32;}&#32;from&#32;&quot;vitemple/file-pack&quot;;&#10;&#10;for&#32;await&#32;(const&#32;{&#32;name,&#32;blob&#32;}&#32;of&#32;fetchFilePack(&quot;./files.vpack&quot;))&#32;{&#10;&#32;&#32;console.log(name,&#32;blob);&#10;}</code></pre>
+          </div>
+          <div class="codebox">
+            <div class="codebar">
+              <span>Read a selected file</span>
+              <button class="copy" type="button" aria-label="Copy read example">Copy</button>
+            </div>
+            <pre><code>import&#32;{&#32;readFilePack&#32;}&#32;from&#32;&quot;vitemple/file-pack&quot;;&#10;&#10;const&#32;file&#32;=&#32;document.querySelector(&#x27;input[type=&quot;file&quot;]&#x27;).files[0];&#10;&#10;for&#32;await&#32;(const&#32;{&#32;name,&#32;blob&#32;}&#32;of&#32;readFilePack(file))&#32;{&#10;&#32;&#32;console.log(name,&#32;blob);&#10;}</code></pre>
+          </div>
+          <p>
+            Use <code>URL.createObjectURL(blob)</code> as an image source and revoke it when no longer needed. For Base64 with a MIME prefix, <code>FileReader.readAsDataURL(blob)</code> uses the restored <code>blob.type</code> automatically.
+          </p>
+        </section>
+        <a class="next-page" href="https://github.com/d-velopment/vitemple-example">Explore the complete example <span>↗</span></a>
+      </main>
+    </div>
+    <slot src="./components/footer.html" base="./" />
+    <slot src="./assets/site.ts" type="script" />
+    <script type="module">
+      import "./assets/packer.js";
+    </script>
+  </body>
+</html>

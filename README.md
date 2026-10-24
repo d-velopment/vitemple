@@ -136,6 +136,37 @@ The TypeScript declaration for the built-in `store` is included with the package
 
 The compiler preserves the authored doctype and document elements. It does not synthesize `<html>`, `<head>`, or `<body>`. The generated HTML is compacted to one line; CSS and the combined module script are minified for delivery.
 
+When building Vitemple itself, all emitted JavaScript modules in `dist`, including subdirectories, are minified through Vite's esbuild transform. Module paths and public exports are preserved. The test command runs against this minified output.
+
+## File packs
+
+The optional browser-native file pack utility combines named `Blob` or `File` objects into one uncompressed `.vpack` file. It has no runtime dependencies and is imported separately from the compiler.
+
+To open Vitemple Packer as part of the documentation from a repository checkout:
+
+```sh
+npm run dev:docs
+```
+
+In the **Pack** tab, select or drop files, choose a pack name, and download the result. In **Unpack**, drop one `.vpack` file to list its contents, download individual files, or choose **Download all**. Files are processed locally in the browser.
+
+```ts
+import {
+  createFilePack,
+  fetchFilePack,
+} from "vitemple/file-pack";
+
+const pack = createFilePack([
+  { name: "level.json", blob: new Blob(['{"level":1}'], { type: "application/json" }) },
+]);
+
+for await (const { name, blob } of fetchFilePack("./files.vpack")) {
+  console.log(name, blob.size);
+}
+```
+
+`readFilePack` also accepts a local `Blob` or `ReadableStream<Uint8Array>`. Each file is yielded as soon as all its bytes arrive, in pack order. Media decoding, object URLs, and texture or audio cleanup remain the application's responsibility. See the [file pack documentation](./src/file-pack/README.md) for limits, cancellation, progress, and the container format.
+
 ## License
 
 Vitemple is released under the [MIT License](./LICENSE).
