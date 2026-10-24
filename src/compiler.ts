@@ -184,7 +184,14 @@ async function bundlePackageImports(
     if (!bundle || bundle.type !== "chunk")
       throw new Error("Vitemple could not generate the bundled script module.");
 
-    return bundle.code;
+    return (
+      await transformWithEsbuild(bundle.code, entry, {
+        loader: "ts",
+        format: "esm",
+        target: "es2022",
+        minify: true,
+      })
+    ).code;
   } finally {
     await rm(entry, { force: true });
   }
