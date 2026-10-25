@@ -132,6 +132,12 @@ const pack = createFilePack([
   { name: "level.json", blob: new Blob(['{"level":1}'], { type: "application/json" }) },
 ]);
 
+const url = URL.createObjectURL(pack);
+const link = document.createElement("a");
+link.href = url;
+link.download = "files.vpack";
+link.click();
+
 for await (const { name, blob } of fetchFilePack("./files.vpack")) {
   console.log(name, blob.size);
 }
