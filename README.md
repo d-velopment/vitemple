@@ -41,34 +41,12 @@ npm install
 
 ## Build and development
 
-Build a site from its HTML entry page with the CLI:
-
-```sh
-vitemple src/index.html --outdir dist
-```
-
-The CLI clears the output directory, compiles the entry page, then follows relative local `<a href>` links-including links inside expanded slots-to find other HTML pages. Each reachable page is emitted at its linked path: `about.html` becomes `dist/about.html`, while `guide/` resolves to `dist/guide/index.html`. External URLs and fragments are left untouched. Local assets referenced by markup, linked stylesheets, and component styles are copied with their relative paths preserved.
-
-The package also includes a Vite development server for projects that use `src/index.html` and `dist` by default. It watches source files, rebuilds the linked pages and assets, and reloads the browser:
-
-```sh
-node node_modules/vitemple/scripts/dev.mjs
-```
-
-Pass an entry path before any options to use a different entry, for example `node node_modules/vitemple/scripts/dev.mjs app/index.html --outdir build`.
-
 For the example project:
 
 ```sh
 npm run build   # compile src/index.html into dist/index.html
 npm run dev     # Vite server, rebuild on src changes, browser full reload
 npm start       # serve generated dist with Vite Preview
-```
-
-To develop Vitemple against the documentation site, run this from the Vitemple repository:
-
-```sh
-npm run dev:docs
 ```
 
 For another local project, pass its path to the same watcher:
@@ -141,12 +119,6 @@ When building Vitemple itself, all emitted JavaScript modules in `dist`, includi
 ## File packs
 
 The optional browser-native file pack utility combines named `Blob` or `File` objects into one uncompressed `.vpack` file. It has no runtime dependencies and is imported separately from the compiler.
-
-To open Vitemple Packer as part of the documentation from a repository checkout:
-
-```sh
-npm run dev:docs
-```
 
 In the **Pack** tab, select or drop files, choose a pack name, and download the result. In **Unpack**, drop one `.vpack` file to list its contents, download individual files, or choose **Download all**. Files are processed locally in the browser.
 
