@@ -2,6 +2,19 @@
 
 A concise record of Vitemple releases and the latest repository changes.
 
+## 0.3.2
+
+### Added
+
+- `fetchFilePackList()` lists the names, MIME types, and sizes in a remote `.vpack` by reading only its header and manifest, then cancelling the response.
+- `readFilePackFile()` extracts a single file by name. It slices a local `Blob` directly or reads a stream only up to the selected file.
+- `fetchFilePackFile()` retrieves a single file over HTTP using verified byte ranges. If ranges cannot be used, it skips preceding bytes without creating Blobs for them and stops the stream after the selected file.
+- Offline unit tests for all six file-pack APIs, including malformed packs, early cancellation, HTTP ranges, and sequential fallback.
+
+### Improved
+
+- The File Packer README explains the archive's use cases and includes examples for downloading a newly created pack, listing remote contents, and extracting individual files. The main README links directly to it.
+
 ## 0.3.1
 
 ### Added
