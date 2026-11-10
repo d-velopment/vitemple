@@ -47,15 +47,21 @@ Atlas JSON and other files may reference neighboring resources. The container pr
 
 ## Examples
 
-Get one file by its name in the manifest:
+Create a pack in memory and read one file from it. The name passed to `readFilePackFile` matches the `name` assigned when packing:
 
 ```js
-import { fetchFilePackFile, readFilePackFile } from "vitemple/file-pack";
+import { createFilePack, readFilePackFile } from "vitemple/file-pack";
 
-const remoteImage = await fetchFilePackFile("/files.vpack", "hero.webp");
-const selectedPack = document.querySelector('input[type="file"]').files[0];
-const localImage = await readFilePackFile(selectedPack, "hero.webp");
+const pack = createFilePack([
+  { name: "hello.txt", blob: new Blob(["Hello!"], { type: "text/plain" }) },
+  { name: "settings.json", blob: new Blob(["{}"], { type: "application/json" }) },
+]);
+
+const file = await readFilePackFile(pack, "hello.txt");
+console.log(await file.text()); // Hello!
 ```
+
+For a pack on a server, see the [`fetchFilePackFile` example](#try-the-hosted-example) using a public `.vpack` and a file it contains.
 
 List a pack's files without waiting for the payloads:
 
