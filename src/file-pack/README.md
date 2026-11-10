@@ -15,7 +15,7 @@ The manifest is at the start of the pack, so you can list its contents before do
 
 ## API
 
-Import the standalone browser module from `vitemple/file-pack`. It does not import the compiler, Node.js modules, codecs, or rendering engines.
+Import the standalone browser module from `vitemple/file-pack`.
 
 - `createFilePack(entries, limits?)` returns a `Blob`. Each entry is `{ name, blob }`; a `File` is also a `Blob`. Names are unique logical keys, not filesystem extraction paths. Files are stored in iteration order and retain their original bytes and MIME types.
 - `readFilePack(blobOrByteStream, options?)` returns an async generator of `{ name, blob }`. A file is available after all its own bytes arrive; later files need not have arrived. Successful completion also checks that the input has no trailing bytes. Read to the end to validate the whole container.
@@ -43,10 +43,6 @@ Default budgets, configurable for both packing and reading:
 
 All limits must be non-negative safe integers. Entry names are limited to 4,096 UTF-16 code units and cannot be empty or contain NUL. MIME types contain at most 255 printable ASCII characters. Unknown signatures, invalid UTF-8 or JSON, duplicate names, unsafe sizes, truncated input, and trailing data are rejected. VPK1 has no content checksum, authentication, compression, or encryption.
 
-Packing uses existing Blobs directly instead of converting every file to an `ArrayBuffer`. Reading buffers one complete file before yielding it, plus the manifest and a source chunk. This is not a constant-memory media decoder: retaining returned Blobs or decoded resources retains their storage, and browser Blob implementations may make internal copies. Consumers own decoding, object URL creation/revocation, GPU textures, and audio resources.
-
-Atlas JSON and other files may reference neighboring resources. The container preserves these references as bytes; application or engine adapters must resolve those logical names within the pack. Packing images together does not create a texture atlas.
-
 ## Examples
 
 Create a pack in memory and read one file from it. The name passed to `readFilePackFile` matches the `name` assigned when packing:
@@ -63,9 +59,24 @@ const file = await readFilePackFile(pack, "hello.txt");
 console.log(await file.text()); // Hello!
 ```
 
-For a pack on a server, see the [`fetchFilePackFile` example](#try-the-hosted-example) using a public `.vpack` and a file it contains.
+To save the `pack` created above, pass it to a download helper from a button's click handler. The helper creates an `<a>` element with a `download` filename and clicks it.
 
-List a pack's files without waiting for the payloads:
+```js
+// Downloads a pack Blob through a temporary anchor element.
+function downloadPack(pack, filename = "files.vpack") {
+  const url = URL.createObjectURL(pack);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
+downloadPack(pack);
+```
+
+For a pack on a server, the [`fetchFilePackFile` example](#try-the-hosted-example) shows how to extract a single file from a public `.vpack`. To list the files without waiting for their payloads, use `fetchFilePackList`:
 
 ```js
 import { fetchFilePackList } from "vitemple/file-pack";
@@ -81,21 +92,10 @@ import { fetchFilePack } from "vitemple/file-pack";
 
 for await (const { name, blob } of fetchFilePack("/files.vpack")) {
   console.log(name, blob);
-
-  // Image source:
-  // const imageSrc = URL.createObjectURL(blob);
-  // image.src = imageSrc;
-  // Call URL.revokeObjectURL(imageSrc) when no longer needed.
-
-  // Base64 with MIME type: "data:image/png;base64,..."
-  // const reader = new FileReader();
-  // Handles the completed conversion and reads the data URL.
-  // reader.onload = () => console.log(reader.result);
-  // reader.readAsDataURL(blob);
 }
 ```
 
-Read a local file already selected through an `<input type="file">`:
+Read a local pack file already selected through an `<input type="file">`:
 
 ```js
 import { readFilePack } from "vitemple/file-pack";
@@ -104,21 +104,10 @@ const file = document.querySelector('input[type="file"]').files[0];
 
 for await (const { name, blob } of readFilePack(file)) {
   console.log(name, blob);
-
-  // Image source:
-  // const imageSrc = URL.createObjectURL(blob);
-  // image.src = imageSrc;
-  // Call URL.revokeObjectURL(imageSrc) when no longer needed.
-
-  // Base64 with MIME type: "data:image/png;base64,..."
-  // const reader = new FileReader();
-  // Handles the completed conversion and reads the data URL.
-  // reader.onload = () => console.log(reader.result);
-  // reader.readAsDataURL(blob);
 }
 ```
 
-The commented image examples assume `image` is an existing `<img>` element. Use them for files with an `image/*` MIME type. Keep the object URL valid while the image is in use, then revoke it when replacing or removing the image.
+For an image Blob, use `URL.createObjectURL(blob)` as the `src` of an `<img>` element. Revoke the object URL when replacing or removing the image.
 
 The reader restores each file's MIME type from the manifest into `blob.type`. `FileReader.readAsDataURL(blob)` automatically includes that type in its result, such as `data:image/png;base64,...`; there is no need to add the type manually. The result is a complete data URL, including the MIME prefix, rather than just the Base64 payload. Neither approach requires saving the extracted file to disk.
 
