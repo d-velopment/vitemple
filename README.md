@@ -9,7 +9,8 @@
 
 Vitemple lets you build static reactive multi-page sites with TypeScript-based HTML files, reusable components and native browser APIs.
 
-[Read the full documentation →](https://d-velopment.github.io/vitemple/)
+[Read the full documentation →](https://d-velopment.github.io/vitemple/)\
+[Read the File Packer documentation ->](https://github.com/d-velopment/vitemple/tree/main/src/file-pack)
 
 ## Design principles
 

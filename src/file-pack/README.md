@@ -11,6 +11,8 @@ Vitemple Packer is a browser-native library that groups files of different types
 
 The manifest is at the start of the pack, so you can list its contents before downloading the file payloads. Stream all files and use each as it arrives, or extract just one by name. Local packs can be sliced directly. Over HTTP, byte ranges let the reader request only the metadata and selected file when the server supports them. Otherwise, the reader scans sequentially and stops once it has the selected file.
 
+[Example →](https://d-velopment.github.io/vitemple-packer/)
+
 ## API
 
 Import the standalone browser module from `vitemple/file-pack`. It does not import the compiler, Node.js modules, codecs, or rendering engines.
